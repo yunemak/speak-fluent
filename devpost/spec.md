@@ -55,8 +55,8 @@ The learner agreed to React/Vite, CSS Modules with plain CSS, Python, Ollama, fa
 | UI | React with JavaScript/JSX and Vite; builds on existing experience | [React](https://react.dev/learn), [Vite](https://vite.dev/guide/) |
 | Styling | Component `.module.css` files; global plain CSS for resets and variables | [Vite CSS Modules](https://vite.dev/guide/features.html#css-modules) |
 | Python HTTP backend | FastAPI, Uvicorn, Pydantic request validation, HTTPX for Ollama calls | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [Pydantic](https://docs.pydantic.dev/latest/), [HTTPX](https://www.python-httpx.org/) |
-| Conversation and feedback | Ollama, initially `qwen3:4b`, `think: false`; small enough to leave GPU headroom | [Ollama API](https://docs.ollama.com/api/chat), [model](https://ollama.com/library/qwen3:4b) |
-| Recognition | faster-whisper `base.en`, CPU `int8`, English transcription; simple first setup | [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [model](https://huggingface.co/Systran/faster-whisper-base.en) |
+| Conversation and feedback | Ollama, `qwen3:4b-q4_K_M`, `think: false`; explicit original 4B variant with GPU headroom | [Ollama API](https://docs.ollama.com/api/chat), [model](https://ollama.com/library/qwen3:4b-q4_K_M) |
+| Recognition | faster-whisper `small.en`, CPU `int8`, English transcription; upgraded from `base.en` for the learner's recognition retry | [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [model](https://huggingface.co/Systran/faster-whisper-small.en) |
 | Voice | `piper-tts`, CPU, initially `en_US-lessac-medium` | [Piper Python API](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/API_PYTHON.md), [voices](https://github.com/OHF-Voice/piper1-gpl/blob/main/docs/VOICES.md) |
 | Turn detection | Silero VAD in the browser through `@ricky0123/vad-web`, initially model `v5`; detects interruptions without a server round trip | [Silero](https://github.com/snakers4/silero-vad), [browser integration](https://docs.vad.ricky0123.com/user-guide/browser/), [callbacks](https://docs.vad.ricky0123.com/user-guide/api/) |
 | Browser inference | Compatible `onnxruntime-web`; serve its WASM and JavaScript assets locally | [ONNX Runtime Web](https://onnxruntime.ai/docs/get-started/with-javascript/web.html) |
@@ -87,7 +87,7 @@ npm --prefix frontend ci
 Start `ollama serve` in a terminal, unless an existing local service already runs it. While online, download the conversation model and run the planned setup script:
 
 ```bash
-ollama pull qwen3:4b
+ollama pull qwen3:4b-q4_K_M
 .venv/bin/python scripts/download_models.py
 ```
 
@@ -135,7 +135,7 @@ Implements `prd.md > Start and Spoken Conversation`.
 
 `audio.js` owns microphone capture, Silero lifecycle, WAV encoding, and playback. Create/resume AudioContext inside the Start click before asynchronous work, request mono audio with echo cancellation and noise suppression, and release media tracks on completion, failure exit, or unmount. The user's normal listening setup is headphones.
 
-Use `MicVAD` with explicit local asset paths. `onSpeechStart` stops playback synchronously and invalidates pending AI audio. `onSpeechEnd` supplies a 16 kHz Float32Array; encode 16-bit mono WAV for recognition. Start with about 1,000 ms of end-of-turn silence and tune with the learner's actual pauses; this is a detection setting, not an agreed response-time target. Keep pre-speech padding so the first word of an interruption is not cut off. A false start with no usable speech returns to listening rather than inventing a turn.
+Use `MicVAD` with explicit local asset paths. After the learner reported breathing/cough false interruptions, stop playback synchronously and invalidate pending AI audio only after about 320 ms of speech-positive frames, counted through `onFrameProcessed`. The initial `onSpeechStart` candidate must leave playback, pending replies, and UI state untouched; `onVADMisfire` only resets the local confirmation counter. Use positive/negative speech-probability thresholds of 0.65/0.4. Capture segments with at least 128 ms positive speech so a brief “goodbye” is not discarded. Segments below the 320 ms interruption threshold are transcribed in order as farewell-only candidates: leave playback and UI unchanged unless recognition confirms a whole closing phrase; ignore non-closing results and failed candidate checks. Longer confirmed utterances follow the normal turn path. `onSpeechEnd` supplies a 16 kHz Float32Array; encode 16-bit mono WAV for recognition. Use about 1,000 ms of end-of-turn silence and 500 ms pre-speech padding so the beginning of a confirmed interruption is retained. These are detection settings, not agreed response-time targets. Tune against real breathing, coughing, quiet speech, and short utterances: speech confirmation reduces false triggers but is not a dedicated cough classifier.
 
 Speech detection stays active during conversation thinking and playback. Short utterances are queued for recognition in capture order. Do not cancel recognition of real user speech just because another utterance starts. Only generate a response when captured utterances have been transcribed and the user is no longer speaking.
 
@@ -143,7 +143,7 @@ Speech detection stays active during conversation thinking and playback. Short u
 
 Implements `prd.md > Start and Spoken Conversation`, `prd.md > Speech Text and Speaking Animation`, and `prd.md > States and Boundaries`.
 
-`useConversation.js` owns the active session and phases: idle, starting, listening, transcribing, thinking, speaking, preparing-feedback, feedback-speaking, saving, complete, error. Track whether the user is currently speaking separately from the phase.
+`useConversation.js` connects React to a framework-independent `Conversation` controller in `lib/conversation.js`, which owns the active session and phases: idle, starting, listening, transcribing, thinking, speaking, preparing-feedback, feedback-speaking, saving, complete, error. Track whether the user is currently speaking separately from the phase. Keeping the controller independent allows race tests to exercise the actual orchestration code.
 
 Use an incrementing response generation ID and AbortController. Speech start invalidates pending generation/synthesis; late responses cannot play or add assistant turns. Browser audio stops without waiting for server cancellation. Recognition results remain ordered. Back-end model work runs off the HTTP event loop; serialize each CPU model's inference. Watch for client disconnection while awaiting Ollama and cancel the outbound HTTP task. Check disconnection before entering and after acquiring CPU inference locks so abandoned synthesis requests leave the queue without running. An already-running CPU operation may finish; its result is discarded. Keep the lock until that underlying operation actually finishes, even if its request was canceled.
 
@@ -169,7 +169,7 @@ Use Qwen3 4B without thinking output, initially an 8,192-token context and bound
 
 Implements `prd.md > Farewell and Feedback Report`.
 
-`farewell.py` matches normalized whole closing utterances such as “goodbye,” “bye,” “bye for now,” “see you later,” and “that's all for today,” with optional polite endings. Avoid matching a quoted or incidental word inside a longer statement, such as “My friend said goodbye yesterday.” Keep this deterministic for the POC rather than adding a separate intent model. The transcription endpoint returns `is_farewell` alongside recognized text. The controller checks it in utterance order before requesting another reply; when true, it closes practice input and ignores any subsequently captured utterances.
+`farewell.py` matches normalized whole closing utterances such as “goodbye,” “bye,” “bye for now,” “see you later,” “that's all for today,” “end the conversation,” and “stop this conversation,” with optional polite prefixes/endings. Avoid matching a quoted or incidental word inside a longer statement, such as “My friend said goodbye yesterday,” as well as negations and questions about ending. Keep this deterministic for the POC rather than adding a separate intent model. The transcription endpoint returns `is_farewell` alongside recognized text. The controller checks it in utterance order before requesting another reply; when true, it closes practice input and ignores any subsequently captured utterances.
 
 After a farewell, finish the final user transcription, stop accepting practice turns, and generate feedback. Pause microphone detection during the report: practice has ended. Feedback includes grammar, word choices, understandable wording, and simplification where there is useful evidence; pronunciation and accent are excluded.
 
@@ -180,6 +180,10 @@ Request structured findings `{category, quote, suggestion, explanation}` plus a 
 Implements `prd.md > Start and Spoken Conversation`, `prd.md > Speech Text and Speaking Animation`, and `prd.md > Farewell and Feedback Report`.
 
 Use `PiperVoice.load(local_voice_path)` once and `synthesize_wav(text, wave_file)` to produce in-memory WAV bytes. The voice's configured sample rate is carried by the WAV; do not assume it is the microphone's 16 kHz rate. Browser playback receives WAV bytes and remains immediately stoppable. Start with complete short replies rather than a token/audio streaming pipeline. A longer report may take more time; show Preparing feedback until speech begins.
+
+Preserve decorative Unicode emojis and ASCII emoticons in generated replies and the formatted feedback report for display and storage. Remove them only from the derived text passed to Piper synthesis. Keep ordinary wording, punctuation, and validated source quotes intact; an emoji-only reply is an error rather than successful empty speech. The learner clarified during hands-on review that emojis should remain visible but never be pronounced by the voice.
+
+The learner further limited displayed emojis to emotional answers. Default prompts to no emojis for routine conversation; use a conservative phrase-based presentation filter to retain generated decoration only for clear emotional reactions such as congratulations or sympathy. Routine feedback has no hard-coded emoji. Apply the filter to the generated report summary and remove decoration from instructional suggestions/explanations, preserving source quotes. This is a simple POC presentation heuristic, not a general sentiment classifier.
 
 ### Markdown Conversation Store
 
@@ -228,7 +232,7 @@ Check request formats and bounded sizes before inference. Reasonable initial tra
 
 ```json
 {
-  "model": "qwen3:4b",
+  "model": "qwen3:4b-q4_K_M",
   "messages": [{"role": "system", "content": "task instructions"}, {"role": "user", "content": "conversation input"}],
   "stream": false,
   "think": false,
@@ -279,11 +283,11 @@ speak-fluent/
 │       │   ├── HistorySidebar.module.css
 │       │   ├── HistoryView.jsx       # Readable saved transcript and report
 │       │   └── HistoryView.module.css
-│       ├── hooks/useConversation.js # Session orchestration, ordered input, cancellation
+│       ├── hooks/useConversation.js # React binding for session orchestration
 │       └── lib/
 │           ├── api.js                # Local HTTP calls and typed-by-convention errors
 │           ├── audio.js              # Silero capture, PCM WAV encoding, stoppable playback
-│           └── conversation.js       # Pure phase/generation helpers for race checks
+│           └── conversation.js       # Testable session controller, ordering, cancellation
 ├── backend/
 │   ├── __init__.py                    # Python package
 │   ├── requirements.txt              # Pinned runtime and focused verification dependencies
@@ -298,7 +302,7 @@ speak-fluent/
 ├── scripts/download_models.py        # Online, rerunnable model setup only
 ├── models/
 │   ├── README.md                     # Exact tested models, sources, licenses, sizes
-│   ├── whisper-base.en/              # Downloaded model/tokenizer, ignored
+│   ├── whisper-small.en/             # Downloaded model/tokenizer, ignored
 │   └── piper/                        # Downloaded voice .onnx and .json, ignored
 ├── data/conversations/               # Personal Markdown files, ignored
 └── tests/

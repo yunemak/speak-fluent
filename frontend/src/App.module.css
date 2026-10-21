@@ -1,0 +1,19 @@
+.app { min-height: 100dvh; display: grid; grid-template-columns: max(150px, 10%) 1fr; }
+.sidebar { border-right: 1px solid var(--line); background: #f0f1eb; padding: 2rem 1rem; display: flex; flex-direction: column; }
+.brand { color: #284c46; font-size: 2.2rem; font-weight: 800; text-decoration: none; letter-spacing: -.2rem; width: fit-content; }
+.brand span { color: #d69f78; font-size: 1rem; padding-left: .3rem; }
+.sidebar h2 { font-size: .75rem; font-weight: 650; margin-top: 3rem; }
+.empty { font-size: .8rem; line-height: 1.65; color: var(--muted); }
+.note { font-size: .7rem; line-height: 1.6; color: var(--muted); }
+.local { margin-top: auto; padding-top: 4rem; font-size: .7rem; line-height: 1.7; color: var(--muted); }
+.local span { display: inline-block; height: 6px; width: 6px; border-radius: 50%; background: #688f7c; margin-right: .25rem; }
+.main { padding: 2.1rem clamp(1.2rem, 5vw, 6rem) 1.2rem; display: flex; flex-direction: column; min-width: 0; }
+.header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+.header strong { font-size: 1rem; letter-spacing: -.02em; display: block; }
+.header span { font-size: .75rem; color: var(--muted); display: block; margin-top: .3rem; }
+.footer { margin-top: auto; padding-top: 2rem; color: var(--muted); text-align: center; font-size: .73rem; }
+@media (max-width: 640px) {
+  .app { grid-template-columns: 1fr; }
+  .sidebar { display: none; }
+  .main { padding-top: 1.2rem; }
+}

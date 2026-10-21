@@ -1,0 +1,8 @@
+.balloon { width: 228px; height: 218px; margin: 0 auto 1.6rem; position: relative; display: grid; place-items: center; background: #dce9ed; border-radius: 47% 53% 58% 42% / 45% 42% 58% 55%; transition: background .2s ease; }
+.balloon::after { content: ''; position: absolute; width: 25px; height: 30px; background: inherit; bottom: -6px; right: 40px; border-radius: 0 0 3px 100%; transform: rotate(-20deg); }
+.robot { width: 165px; position: relative; z-index: 1; }
+.spark { position: absolute; top: 28px; right: 19px; color: #8aabae; font-size: 1.5rem; }
+.speaking { background: #f3d5bd; }
+.speaking .robot { animation: bob 1.5s ease-in-out infinite; }
+.speaking .spark { color: #b97e53; }
+@keyframes bob { 50% { transform: translateY(-4px); } }

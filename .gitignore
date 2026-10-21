@@ -2,3 +2,14 @@
 .env
 .env.*
 !.env.example
+.tools/
+.venv/
+__pycache__/
+.pytest_cache/
+node_modules/
+frontend/dist/
+frontend/public/vendor/
+models/*
+!models/README.md
+data/
+*.log

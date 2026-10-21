@@ -1,0 +1,42 @@
+from typing import Literal
+from uuid import UUID
+
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class Turn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    id: UUID
+    role: Literal["user", "assistant"]
+    text: str = Field(min_length=1, max_length=24000)
+    interrupted: bool = False
+
+
+class ReplyRequest(BaseModel):
+    request_id: str = Field(min_length=1, max_length=100)
+    opening: bool = False
+    turns: list[Turn] = Field(default_factory=list, max_length=1000)
+
+
+class ReportRequest(BaseModel):
+    request_id: str = Field(min_length=1, max_length=100)
+    turns: list[Turn] = Field(max_length=1000)
+
+
+class SpeechRequest(BaseModel):
+    request_id: str = Field(min_length=1, max_length=100)
+    text: str = Field(min_length=1, max_length=24000)
+
+
+class Finding(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    category: Literal["grammar", "word choice", "clarity", "simplification"]
+    quote: str = Field(min_length=1, max_length=2000)
+    suggestion: str = Field(min_length=1, max_length=2000)
+    explanation: str = Field(min_length=1, max_length=2000)
+
+
+class Feedback(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    summary: str = Field(min_length=1, max_length=2000)
+    findings: list[Finding] = Field(max_length=12)

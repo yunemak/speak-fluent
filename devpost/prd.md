@@ -45,6 +45,8 @@ The microphone Start button begins the session, with the AI speaking first. Conv
 
 The user can speak at any time during the conversation. When they interrupt the AI, its current speech stops and the app listens to their turn. Situation-dependent decisions about whether to continue speaking are deferred.
 
+Breathing, coughing, and other non-speech sounds should not count as interruptions. A brief speech-confirmation window is acceptable to reduce false interruptions; verify the balance against real speech during the hands-on check.
+
 **Acceptance criteria**
 - Pressing Start produces an audible AI opening without requiring the user to speak first.
 - A few spoken exchanges work without per-turn button presses.
@@ -57,6 +59,8 @@ Source: `scope.md > The Core Loop`, `The Unique Kernel`, and `The POC Boundary`.
 
 AI speech is visible as text by default. The user can hide and reveal it without ending the conversation or muting speech. Hiding text does not remove it from the completed transcript. The robot's balloon-like background changes color while the AI speaks.
 
+Emojis may appear only with genuinely emotional AI replies (such as celebration or sympathy), not as routine decoration on greetings, ordinary questions, or every turn. They are silent decorations: voice output must skip them rather than pronounce emoji names. This preference was clarified during the first build's hands-on review.
+
 **Acceptance criteria**
 - The displayed text corresponds to the audible AI reply.
 - Hiding text leaves spoken interaction working; showing it restores the text display.
@@ -67,6 +71,8 @@ Source: `scope.md > Inspiration & Identity` and `The Core Loop`, expanded in the
 ### Farewell and Feedback Report
 
 A goodbye or similar farewell ends practice and triggers a spoken report. The report covers grammar mistakes, appropriate word choices, understandable wording, and ways to simplify unnecessarily complex sentences. It uses examples from the actual conversation and gives actionable alternatives where needed. It must not invent mistakes when no relevant issue was found. Understandability refers to wording, not pronunciation or accent grading.
+
+An explicit closing request such as “end the conversation” also triggers feedback. Briefly spoken farewells must still be recognized when filtering out non-speech interruptions.
 
 The report is also available as text in the saved conversation. As AI speech, its live text follows the show/hide control. After the report finishes, the microphone Start button is available again.
 
