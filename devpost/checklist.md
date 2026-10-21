@@ -84,7 +84,7 @@ The learner confirmed saving/reopening works as expected and requested that the 
 
 ### Slice 3 verification and resume state
 
-Implementation of the final slice is complete and mechanically verified; it awaits the learner's own disconnected-network run and the final hands-on review. Keep slice 3 uncommitted until the learner confirms the offline journey and any agreed fixes are resolved.
+Implementation of the final slice is complete and mechanically verified, and is checkpointed in `071a392`. The slice stays unchecked until the learner's own disconnected-network run and the final hands-on review are done, so the box reflects learner-confirmed completion rather than only the agent's checks.
 
 - Long conversations: feedback now reviews every user turn in bounded batches (`llm.feedback_batches`), combining grounded findings from each batch and stating how many turns were reviewed. Reply context is bounded by UTF-8 bytes, not characters, and an oversized newest turn keeps its final words. A failure in any batch fails the whole report instead of returning a partial one.
 - Real-model verification of batching: an 8,957-character two-turn transcript produced corrections for both the first sentence (“Yesterday I go to the park.”) and the last (“She have two cats.”), all quotes grounded, in 7.5 s across 5 batches. The first attempt with larger batches missed the early error, so report batches were reduced to 2,200 bytes and the prompt was rewritten to require a sentence-by-sentence review with a single non-repeating example.
