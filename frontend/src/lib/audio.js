@@ -33,16 +33,26 @@ export class BrowserAudio {
 
   async listen(callbacks) {
     const generation = ++this.generation;
+    this.stream?.getTracks().forEach(track => track.stop());
+    await this.vad?.destroy();
+    this.vad = null;
+    let stream;
     try {
-      this.stream = await navigator.mediaDevices.getUserMedia({ audio: {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: {
         channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true,
       } });
     } catch {
       throw new Error('Microphone unavailable. Allow microphone access in Chromium and check your Linux input device, then retry.');
     }
     if (generation !== this.generation) {
-      this.stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach(track => track.stop());
       return;
+    }
+    this.stream = stream;
+    for (const track of stream.getAudioTracks()) {
+      track.addEventListener('ended', () => {
+        if (generation === this.generation) callbacks.onError?.(new Error('Microphone disconnected. Check your Linux input device, then retry the microphone.'));
+      }, { once: true });
     }
     const vad = await MicVAD.new({
       model: 'v5', startOnLoad: false, audioContext: this.context,
@@ -51,7 +61,7 @@ export class BrowserAudio {
       // import as application source (public assets must be served unchanged).
       onnxWASMBasePath: new URL('/vendor/', window.location.href).href,
       ortConfig: ort => { ort.env.wasm.numThreads = 1; },
-      getStream: async () => this.stream,
+      getStream: async () => stream,
       ...speechDetectionOptions(callbacks.onSpeechStart,
         (samples, options) => callbacks.onSpeechEnd(encodeWav(samples), options)),
     });
@@ -82,24 +92,33 @@ export class BrowserAudio {
     source.connect(context.destination);
     return new Promise((resolve, reject) => {
       let settled = false;
+      const stateChanged = () => {
+        if (!settled && context.state !== 'running') {
+          output.finish('blocked');
+        }
+      };
       const output = {
         finish: reason => {
           if (settled) return;
           settled = true;
           source.onended = null;
+          context.removeEventListener('statechange', stateChanged);
           if (reason !== 'ended') source.stop();
           source.disconnect();
           if (this.output === output) this.output = null;
-          resolve(reason);
+          if (reason === 'blocked') reject(new Error('Audio was paused by the browser. Press Retry to resume this reply.'));
+          else resolve(reason);
         },
       };
       this.output = output;
+      context.addEventListener('statechange', stateChanged);
       source.onended = () => output.finish('ended');
       try {
         source.start();
         onStart();
       } catch (error) {
         this.output = null;
+        context.removeEventListener('statechange', stateChanged);
         source.disconnect();
         reject(error);
       }

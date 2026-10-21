@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
-import { Conversation } from '../frontend/src/lib/conversation.js';
+import { Conversation, speechChunks } from '../frontend/src/lib/conversation.js';
 import { speechDetectionOptions } from '../frontend/src/lib/vad.js';
 import { FrameProcessor } from '../frontend/node_modules/@ricky0123/vad-web/dist/frame-processor.js';
 import { Message } from '../frontend/node_modules/@ricky0123/vad-web/dist/messages.js';
@@ -16,7 +16,7 @@ function harness(overrides = {}) {
   const calls = { replies: [], plays: [], transcriptions: [], saves: [], reports: 0, stops: 0, paused: 0 };
   let output;
   const audio = {
-    unlock: async () => {}, listen: async () => {}, close: async () => {},
+    unlock: async () => {}, listen: async callbacks => { audio.callbacks = callbacks; }, close: async () => {},
     pauseInput: async () => { calls.paused += 1; },
     stop: () => { calls.stops += 1; output?.resolve('interrupted'); output = null; },
     play: async (bytes, current, start) => {
@@ -291,4 +291,94 @@ test('recognition retry preserves the failed utterance and never invents text', 
   assert.equal(c.state.turns.filter(t => t.role === 'user').length, 1);
   assert.equal(attempts, 2);
   audio.end();
+});
+
+test('synthesis retry uses the same generated words rather than requesting another reply', async () => {
+  const spoken = [];
+  const { c, calls, audio } = harness({ speech: async body => {
+    spoken.push(body.text);
+    if (spoken.length === 1) throw new Error('Voice unavailable');
+    return body.text;
+  } });
+  await c.start();
+  assert.equal(c.state.phase, 'error');
+  assert.equal(c.state.turns.length, 0);
+  const retry = c.retry();
+  await setImmediate();
+  assert.equal(calls.replies.length, 1);
+  assert.deepEqual(spoken, ['How was your day?', 'How was your day?']);
+  audio.end(); await retry;
+});
+
+test('blocked playback retries cached audio and enters the transcript only on actual playback', async () => {
+  let synthesis = 0;
+  const { c, calls, audio } = harness({ speech: async body => { synthesis++; return body.text; } });
+  const play = audio.play;
+  audio.play = async () => { throw new Error('Playback blocked'); };
+  await c.start();
+  assert.equal(c.state.phase, 'error');
+  assert.equal(c.state.turns.length, 0);
+  audio.play = play;
+  const retry = c.retry();
+  await setImmediate();
+  assert.equal(synthesis, 1);
+  assert.equal(calls.replies.length, 1);
+  assert.equal(c.state.turns.length, 1);
+  audio.end(); await retry;
+});
+
+test('long report keeps every character and retries only its failed audio chunk before saving', async () => {
+  const report = 'A useful suggestion.\n\n'.repeat(240);
+  const chunks = speechChunks(report);
+  assert.equal(chunks.join(''), report);
+  assert.ok(chunks.every(chunk => chunk.length <= 3000));
+  const { c, calls, audio } = harness({ report: async body => ({ request_id: body.request_id, report_text: report }) });
+  const start = c.start();
+  await setImmediate(); audio.end(); await start;
+  c.speechStart(); c.speechEnd('Goodbye.');
+  await setImmediate();
+  const originalSpeech = c.api.speech;
+  let failed = false;
+  c.api.speech = async body => {
+    if (!failed) { failed = true; throw new Error('Voice failed midway'); }
+    return originalSpeech(body);
+  };
+  audio.end(); await setImmediate();
+  assert.equal(c.state.phase, 'error');
+  assert.equal(calls.saves.length, 0);
+  const retry = c.retry();
+  await setImmediate();
+  for (let index = 1; index < chunks.length; index++) {
+    assert.equal(c.state.phase, 'feedback-speaking');
+    audio.end(); await setImmediate();
+  }
+  await retry;
+  assert.deepEqual(calls.plays.slice(1), chunks);
+  assert.equal(calls.saves.length, 1);
+  assert.equal(calls.saves[0].report_text, report);
+});
+
+test('microphone recovery preserves prior turns and starts listening again', async () => {
+  const { c, audio } = harness();
+  const starting = c.start();
+  await setImmediate(); audio.end(); await starting;
+  const before = structuredClone(c.state.turns);
+  audio.callbacks.onError(new Error('Microphone disconnected'));
+  assert.equal(c.state.retryLabel, 'Retry microphone');
+  await c.retry();
+  assert.equal(c.state.phase, 'listening');
+  assert.deepEqual(c.state.turns, before);
+});
+
+test('unmounted session ignores late recognition without generating or saving', async () => {
+  const recognition = deferred();
+  const { c, calls, audio } = harness({ transcribe: () => recognition.promise });
+  const starting = c.start();
+  await setImmediate(); audio.end(); await starting;
+  c.speechStart(); c.speechEnd('Goodbye.');
+  await c.dispose();
+  recognition.resolve({ text: 'Goodbye.', is_farewell: true });
+  await setImmediate();
+  assert.equal(calls.reports, 0);
+  assert.equal(calls.saves.length, 0);
 });

@@ -19,7 +19,7 @@ Build mode: learn. Explain each verified slice, pause for the learner to try it,
   Learner check: Start the three local processes using the README and open http://127.0.0.1:5173 in Chromium with headphones. Press Start and hear the greeting. Talk for a few turns, interrupt while it speaks and while it is thinking, and hide/show text. Include one deliberately imperfect sentence, then say goodbye and listen to its correction. Report whether it understood your wording, respected pauses, stopped promptly, and felt natural enough for practice; this feedback determines any necessary tuning before later slices.
   Commit: `Add local hands-free conversation and spoken feedback`
 
-- [ ] **2. Reopen completed conversations and their reports**
+- [x] **2. Reopen completed conversations and their reports**
   Becomes usable: After the spoken report finishes, the session appears in the left sidebar. Open its transcript and report, restart the app and find it again, or begin a separate new session. A failed save can be retried without losing the current session.
   Why now: Once real conversations and feedback exist, persist exactly that useful result. This completes the core journey without adding a database or speculative history features.
   PRD ref: `prd.md > The Core Journey` (steps 6 and 1), `prd.md > Screens and Layout`, `prd.md > Old Conversations`, `prd.md > States and Boundaries`.
@@ -72,7 +72,7 @@ The learner confirmed the closing repair with “Works ok” after previously co
 
 ### Slice 2 verification and resume state
 
-The learner confirmed saving/reopening works as expected and requested that the sidebar stay pinned during scrolling, then asked to continue. A user checkpoint commit (`54d9806`, “Chatgpt tokens run out”) preserved the implementation during the environment restart; leave that commit intact. Verify the sticky-sidebar refinement, then save the reviewed slice with its planned commit message.
+The learner confirmed saving/reopening works as expected and requested that the sidebar stay pinned during scrolling, then asked to continue. A user checkpoint commit (`54d9806`, “Chatgpt tokens run out”) preserved the implementation during the environment restart. History and the verified sticky-sidebar refinement are checkpointed in `bfeb85b`. Continue with slice 3 in learn mode; final review includes the sidebar visual retry.
 
 - Implemented `backend/history.py` with UTF-8 Markdown, metadata, atomic write/rename, filesystem locking, duplicate-save protection, UUID-constrained lookup, and per-file read warnings. History has a writable readiness check; `SPEAK_FLUENT_HISTORY_DIR` supports isolated verification stores.
 - The controller saves only after feedback playback finishes; failed saving retains the session and offers Retry save without replaying feedback. Sidebar refresh, disabled selection during practice, and escaped Markdown viewing are connected. Completed transcripts retain hidden text, emojis, and interruption notes.
@@ -81,6 +81,20 @@ The learner confirmed saving/reopening works as expected and requested that the 
 - After the environment restart, restored all three services, confirmed readiness (including writable history) and frontend HTTP 200, and reran the isolated browser history journey successfully. Inspected `/tmp/opencode/speak-fluent-history.png`; readable transcript/report, both sidebar entries, and the per-file warning were visible. Updated README with saved-file location, restart check, and Retry save instructions.
 - Learner history check completed: “Yes it works as expected.” Requested sticky sidebar refinement; check its viewport position mechanically and carry the visual retry into final review as the learner asked to continue. More natural voice exploration remains deferred.
 - Sticky sidebar verified in Chromium at desktop 1440×900 and narrow 390×844: after scrolling 1,400 px, sidebar top remains at viewport y=0 and height stays within the viewport. Production build passed. Ready to checkpoint slice 2 and proceed.
+
+### Slice 3 verification and resume state
+
+Implementation of the final slice is complete and mechanically verified; it awaits the learner's own disconnected-network run and the final hands-on review. Keep slice 3 uncommitted until the learner confirms the offline journey and any agreed fixes are resolved.
+
+- Long conversations: feedback now reviews every user turn in bounded batches (`llm.feedback_batches`), combining grounded findings from each batch and stating how many turns were reviewed. Reply context is bounded by UTF-8 bytes, not characters, and an oversized newest turn keeps its final words. A failure in any batch fails the whole report instead of returning a partial one.
+- Real-model verification of batching: an 8,957-character two-turn transcript produced corrections for both the first sentence (“Yesterday I go to the park.”) and the last (“She have two cats.”), all quotes grounded, in 7.5 s across 5 batches. The first attempt with larger batches missed the early error, so report batches were reduced to 2,200 bytes and the prompt was rewritten to require a sentence-by-sentence review with a single non-repeating example.
+- Findings that repeat their quote as the suggestion are dropped rather than failing the whole report; ungrounded quotes still fail. Verified by unit test and by the real-model run above.
+- Recovery: synthesis and playback retries reuse the same generated words and cached audio instead of asking the model again; a blocked playback never adds a transcript turn; a disconnected microphone offers Retry microphone and keeps earlier turns; an interrupted reply is marked when playback fails mid-way. Long feedback is spoken in chunks with Preparing feedback between them, and a failed chunk retries only that chunk.
+- Runtime: a canceled client no longer surfaces as a user-visible failure, and the CPU worker owns the inference lock so a canceled request cannot release it while a thread is still running. Readiness also verifies the local browser VAD/ONNX assets.
+- Mechanical verification: 59 Python tests and 18 JavaScript tests passed, plus the frontend production build. New coverage: batched all-turn review, Unicode-safe splitting, no partial report on batch failure, byte-bounded reply context, lock ownership under cancellation, queued work never running after cancel, request-size limits, invalid audio type, validation not echoing private text, and an unavailable Ollama service.
+- Browser journeys with real local models all passed: the full speech loop, offline evidence (no external page requests and no external service sockets during a complete journey), unavailable Ollama (actionable warning, Retry, no fake session), unwritable history folder (readiness fails visibly), and the history journey (save after playback, Retry save, restart persistence, malformed-file warning).
+- Voice comparison support: `scripts/download_voice.py` and `scripts/compare_voices.py` download extra local Piper voices and render the same sentence for a listening test; `SPEAK_FLUENT_VOICE` selects the active voice at startup. This answers the learner's request for a more human-like voice without adding an in-app picker. `en_US-amy-medium` and `en_US-bryce-medium` are downloaded locally as candidates; the learner chooses.
+- Learner action pending: complete the spec's final live verification with external networking disconnected, compare the voice samples, and explore the app freely. Report anything broken, confusing, or worth changing.
 
 ## Final Review
 

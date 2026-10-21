@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
 from . import llm
-from .config import CHAT_MODEL, HISTORY_PATH, OLLAMA_URL, VOICE_PATH, WHISPER_PATH
+from .config import CHAT_MODEL, HISTORY_PATH, OLLAMA_URL, ROOT, VOICE_PATH, WHISPER_PATH
 from .farewell import is_farewell
 from .schemas import CompletedSession, ReplyRequest, ReportRequest, SpeechRequest
 from .speech import Speech
@@ -23,6 +23,7 @@ history = ConversationStore(HISTORY_PATH)
 recognition_lock = asyncio.Lock()
 voice_lock = asyncio.Lock()
 logger = logging.getLogger("uvicorn.error")
+cpu_tasks = set()
 
 
 def failure(code, message, status=503, retryable=True):
@@ -77,25 +78,41 @@ async def until_disconnect(request, operation):
                 await task
 
 
+class Abandoned(Exception):
+    """The browser went away before this CPU-bound work could start."""
+
+
 async def cpu(request, lock, function, *args):
-    if await request.is_disconnected():
-        raise asyncio.CancelledError
-    async with lock:
+    abandoned = False
+
+    async def worker():
         if await request.is_disconnected():
-            raise asyncio.CancelledError
-        work = asyncio.create_task(asyncio.to_thread(function, *args))
-        try:
-            return await asyncio.shield(work)
-        except asyncio.CancelledError:
-            # Shield alone is insufficient: keep the lock while the thread runs.
-            with contextlib.suppress(Exception):
-                await work
-            raise
+            raise Abandoned
+        async with lock:
+            if abandoned or await request.is_disconnected():
+                raise Abandoned
+            # The worker, not the HTTP request, owns the lock. Canceling a client
+            # cannot release it while an uninterruptible CPU thread still runs.
+            return await asyncio.to_thread(function, *args)
+
+    def finished(task):
+        cpu_tasks.discard(task)
+        if not task.cancelled():
+            task.exception()  # retrieve abandoned failures without transcript logs
+
+    work = asyncio.create_task(worker())
+    cpu_tasks.add(work)
+    work.add_done_callback(finished)
+    try:
+        return await asyncio.shield(work)
+    except asyncio.CancelledError:
+        abandoned = True
+        raise
 
 
 @app.get("/api/health")
 async def health(request: Request):
-    checks = {"ollama": False, "chat_model": False, "stt": False, "tts": False, "history_writable": False}
+    checks = {"ollama": False, "chat_model": False, "stt": False, "tts": False, "history_writable": False, "vad_assets": False}
     problems = []
     try:
         async with httpx.AsyncClient(timeout=3, trust_env=False) as client:
@@ -123,6 +140,11 @@ async def health(request: Request):
         checks["history_writable"] = True
     except OSError:
         problems.append("History is not writable. Check free disk space and data/conversations permissions, then retry.")
+    vendor = ROOT / "frontend" / "public" / "vendor"
+    required = ["silero_vad_v5.onnx", "vad.worklet.bundle.min.js", "ort-wasm-simd-threaded.mjs", "ort-wasm-simd-threaded.wasm"]
+    checks["vad_assets"] = all((vendor / name).is_file() and (vendor / name).stat().st_size > 0 for name in required)
+    if not checks["vad_assets"]:
+        problems.append("Local browser speech assets are missing. Run npm --prefix frontend ci, then retry.")
     return {"ready": all(checks.values()), "checks": checks, "problems": problems}
 
 

@@ -35,6 +35,20 @@ def test_clean_sentence_does_not_require_a_finding():
     assert "No clear wording issues" in llm.format_feedback(feedback)
 
 
+def test_a_finding_without_a_real_change_is_dropped_not_fatal():
+    raw = json.dumps({"summary": "One clear fix.", "findings": [
+        {"category": "grammar", "quote": "I like swimming.", "suggestion": "I like swimming.",
+         "explanation": "No change."},
+        {"category": "grammar", "quote": "Yesterday I go to the park.", "suggestion": "Yesterday I went to the park.",
+         "explanation": "Use the past tense."},
+    ]})
+    with pytest.raises(ValueError):
+        llm.validate_feedback(raw, ["I like swimming.", "Yesterday I go to the park."])
+    relaxed = llm.validate_feedback(raw, ["I like swimming.", "Yesterday I go to the park."], strict=False)
+    assert len(relaxed.findings) == 1
+    assert relaxed.findings[0].suggestion == "Yesterday I went to the park."
+
+
 @pytest.mark.parametrize("data", [
     {"done": False, "message": {"content": "unfinished"}},
     {"done": True, "done_reason": "length", "message": {"content": "partial"}},
@@ -134,3 +148,59 @@ def test_emoji_only_reply_is_not_a_success(monkeypatch):
 ])
 def test_only_clear_emotional_reactions_keep_decorative_emojis(text, expected):
     assert display_text(text) == expected
+
+
+def test_long_report_reviews_every_user_character_and_keeps_all_batch_findings(monkeypatch):
+    turns = [Turn(id=uuid4(), role="user", text=f"Turn {i}: Yesterday I go to the park. " + "I enjoy walking. " * 160)
+             for i in range(24)]
+    seen, quotes = [], []
+
+    async def chat(messages, **kwargs):
+        batch = json.loads(messages[-1]["content"])
+        assert llm.size(batch) <= llm.REPORT_INPUT_BYTES
+        seen.extend(batch)
+        quote = batch[0][:40]
+        quotes.append(quote)
+        output = finding(quote)
+        return json.dumps(output)
+
+    monkeypatch.setattr(llm, "chat", chat)
+    result = asyncio.run(llm.report(turns + [Turn(id=uuid4(), role="assistant", text="Not learner wording.")]))
+    assert "".join(seen) == "".join(turn.text for turn in turns)
+    assert len(seen) > 1
+    assert len(result["findings"]) == len(set(quotes))
+    assert len(result["findings"]) > 12
+    assert all(quote in result["report_text"] for quote in quotes)
+
+
+def test_large_unicode_turn_splits_without_omitting_or_corrupting_text():
+    original = ('I said “café” 😊.\n' + '\\"') * 1500
+    batches = list(llm.feedback_batches([original]))
+    assert len(batches) > 1
+    assert all(llm.size(batch) <= llm.REPORT_INPUT_BYTES for batch in batches)
+    assert "".join(part for batch in batches for part in batch) == original
+
+
+def test_failure_in_later_batch_never_returns_partial_success(monkeypatch):
+    count = 0
+
+    async def chat(*args, **kwargs):
+        nonlocal count
+        count += 1
+        if count == 1:
+            return '{"summary":"Clear wording.","findings":[]}'
+        raise llm.ModelError("Incomplete output")
+
+    monkeypatch.setattr(llm, "chat", chat)
+    turns = [Turn(id=uuid4(), role="user", text="I like reading. " * 1000)]
+    with pytest.raises(llm.ModelError):
+        asyncio.run(llm.report(turns))
+    assert count == 3
+
+
+def test_bounded_reply_context_keeps_end_of_newest_oversized_turn():
+    latest = Turn(id=uuid4(), role="user", text="A long story. " * 1500 + "My final question is about swimming.")
+    messages = llm.recent_messages([Turn(id=uuid4(), role="assistant", text="Old answer."), latest])
+    assert llm.size(messages) <= llm.INPUT_BYTES
+    assert messages[-1]["content"].endswith("My final question is about swimming.")
+    assert "Earlier text omitted" in messages[-1]["content"]

@@ -36,9 +36,14 @@ class Finding(BaseModel):
     explanation: str = Field(min_length=1, max_length=2000)
 
 
-class Feedback(BaseModel):
+class ReportFeedback(BaseModel):
     model_config = ConfigDict(extra="forbid")
     summary: str = Field(min_length=1, max_length=2000)
+    findings: list[Finding]
+
+
+class Feedback(ReportFeedback):
+    """Bound each model response; combined reports may contain more findings."""
     findings: list[Finding] = Field(max_length=12)
 
 

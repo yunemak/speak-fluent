@@ -11,5 +11,6 @@ frontend/dist/
 frontend/public/vendor/
 models/*
 !models/README.md
+models/voice-samples/
 data/
 *.log

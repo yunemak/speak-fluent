@@ -4,6 +4,21 @@ export const initialState = () => ({
   savedConversation: null,
 });
 
+export function speechChunks(text, limit = 3000) {
+  const chunks = [];
+  while (text.length > limit) {
+    let end = text.lastIndexOf('\n\n', limit);
+    if (end < limit / 2) end = text.lastIndexOf(' ', limit);
+    if (end < limit / 2) end = limit;
+    // Do not split a UTF-16 surrogate pair in an unusual long unbroken string.
+    if (/[\uD800-\uDBFF]/.test(text[end - 1])) end -= 1;
+    chunks.push(text.slice(0, end));
+    text = text.slice(end);
+  }
+  if (text) chunks.push(text);
+  return chunks;
+}
+
 // Framework-independent so the actual interruption/queue logic can be race-tested.
 export class Conversation {
   constructor(api, audio, publish) {
@@ -55,10 +70,7 @@ export class Conversation {
       const health = await this.api.health(this.lifetime.signal);
       if (session !== this.session) return;
       if (!health.ready) throw new Error(health.problems.join('\n'));
-      await this.audio.listen({
-        onSpeechStart: () => this.speechStart(),
-        onSpeechEnd: (wav, options) => this.speechEnd(wav, options),
-      });
+      await this.listen();
       if (session !== this.session) return;
       this.accepting = true;
       await this.respond(true);
@@ -71,8 +83,31 @@ export class Conversation {
 
   fail(error, retry, retryLabel = 'Retry') {
     if (error.name === 'AbortError') return;
+    if (this.playingTurn) {
+      this.update({ turns: this.state.turns.map(turn => turn.id === this.playingTurn ? { ...turn, interrupted: true } : turn) });
+      this.playingTurn = null;
+    }
     this.retryAction = retry;
     this.update({ phase: 'error', speaking: false, warning: error.message, retryable: true, retryLabel });
+  }
+
+  async listen() {
+    const session = this.session;
+    await this.audio.listen({
+      onSpeechStart: () => { if (session === this.session) this.speechStart(); },
+      onSpeechEnd: (wav, options) => { if (session === this.session) this.speechEnd(wav, options); },
+      onError: error => {
+        if (session !== this.session || !this.accepting) return;
+        this.invalidate();
+        this.update({ userSpeaking: false });
+        this.fail(error, async () => {
+          await this.listen();
+          if (session !== this.session) return;
+          this.update({ phase: 'listening' });
+          await this.drain();
+        }, 'Retry microphone');
+      },
+    });
   }
 
   speechStart() {
@@ -146,7 +181,7 @@ export class Conversation {
     }
   }
 
-  async respond(opening, report = false, cachedText = null) {
+  async respond(opening, report = false, cached = null) {
     this.invalidate();
     const generation = this.generation;
     const session = this.session;
@@ -154,32 +189,40 @@ export class Conversation {
     this.pending = controller;
     const current = () => session === this.session && generation === this.generation && !controller.signal.aborted;
     const request_id = `${this.state.sessionId}:${generation}`;
-    let text = cachedText;
+    const delivery = cached || { text: null, chunks: null, index: 0, audio: null };
     this.update({ phase: report ? 'preparing-feedback' : 'thinking', warning: '', retryable: false });
     try {
-      if (!text) {
+      if (!delivery.text) {
         const result = await this.api[report ? 'report' : 'reply']({ request_id, opening, turns: this.state.turns }, controller.signal);
         if (!current()) return;
         if (result.request_id !== request_id) throw new Error('Received an outdated response. Please retry.');
-        text = report ? result.report_text : result.text;
-        if (report) this.update({ report: text });
+        delivery.text = report ? result.report_text : result.text;
+        if (report) this.update({ report: delivery.text });
       }
-      const bytes = await this.api.speech({ request_id, text }, controller.signal);
-      if (!current()) return;
-      const result = await this.audio.play(bytes, current, () => {
-        if (!current()) return;
-        if (!report) {
-          this.playingTurn = crypto.randomUUID();
-          this.update({ turns: [...this.state.turns, {
-            id: this.playingTurn, role: 'assistant', text, interrupted: false,
-          }] });
+      delivery.chunks ??= report ? speechChunks(delivery.text) : [delivery.text];
+      while (delivery.index < delivery.chunks.length) {
+        if (!delivery.audio) {
+          delivery.audio = await this.api.speech({ request_id, text: delivery.chunks[delivery.index] }, controller.signal);
         }
-        this.update({ phase: report ? 'feedback-speaking' : 'speaking', speaking: true });
-      });
-      if (!current()) return;
-      this.playingTurn = null;
-      this.update({ speaking: false });
-      if (result !== 'ended') return;
+        if (!current()) return;
+        const result = await this.audio.play(delivery.audio, current, () => {
+          if (!current()) return;
+          if (!report) {
+            this.playingTurn = crypto.randomUUID();
+            this.update({ turns: [...this.state.turns, {
+              id: this.playingTurn, role: 'assistant', text: delivery.text, interrupted: false,
+            }] });
+          }
+          this.update({ phase: report ? 'feedback-speaking' : 'speaking', speaking: true });
+        });
+        if (!current()) return;
+        this.playingTurn = null;
+        this.update({ speaking: false });
+        if (result !== 'ended') return;
+        delivery.index += 1;
+        delivery.audio = null;
+        if (report && delivery.index < delivery.chunks.length) this.update({ phase: 'preparing-feedback' });
+      }
       if (report) {
         await this.audio.close();
         if (current()) {
@@ -190,7 +233,7 @@ export class Conversation {
         this.update({ phase: 'listening' });
       }
     } catch (error) {
-      if (current()) this.fail(error, () => this.respond(opening, report, text));
+      if (current()) this.fail(error, () => this.respond(opening, report, delivery));
     }
   }
 

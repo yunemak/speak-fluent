@@ -146,7 +146,9 @@ Implements `prd.md > Start and Spoken Conversation`, `prd.md > Speech Text and S
 
 `useConversation.js` connects React to a framework-independent `Conversation` controller in `lib/conversation.js`, which owns the active session and phases: idle, starting, listening, transcribing, thinking, speaking, preparing-feedback, feedback-speaking, saving, complete, error. Track whether the user is currently speaking separately from the phase. Keeping the controller independent allows race tests to exercise the actual orchestration code.
 
-Use an incrementing response generation ID and AbortController. Speech start invalidates pending generation/synthesis; late responses cannot play or add assistant turns. Browser audio stops without waiting for server cancellation. Recognition results remain ordered. Back-end model work runs off the HTTP event loop; serialize each CPU model's inference. Watch for client disconnection while awaiting Ollama and cancel the outbound HTTP task. Check disconnection before entering and after acquiring CPU inference locks so abandoned synthesis requests leave the queue without running. An already-running CPU operation may finish; its result is discarded. Keep the lock until that underlying operation actually finishes, even if its request was canceled.
+Use an incrementing response generation ID and AbortController. Speech start invalidates pending generation/synthesis; late responses cannot play or add assistant turns. Browser audio stops without waiting for server cancellation. Recognition results remain ordered. Back-end model work runs off the HTTP event loop; serialize each CPU model's inference. Watch for client disconnection while awaiting Ollama and cancel the outbound HTTP task. Check disconnection before entering and after acquiring CPU inference locks so abandoned synthesis requests leave the queue without running. An already-running CPU operation may finish; its result is discarded. Keep the lock until that underlying operation actually finishes, even if its request was canceled: the worker task owns the lock, not the HTTP request, so a canceled client cannot release it while an uninterruptible thread still runs.
+
+A canceled or disconnected client raises an internal abandonment signal instead of a model error, so an abandoned request never surfaces as a user-visible failure. Retry reuses the generated words and any already-synthesized audio: a synthesis retry must not ask the model for a new reply, and a blocked-playback retry must not add a turn to the transcript unless playback actually started. A disconnected microphone is reported with a Retry microphone action that reopens the microphone and keeps earlier turns.
 
 Store assistant text when its playback starts. Mark a cut-off reply “Interrupted — generated reply shown; not all words were spoken,” rather than pretending the full reply was heard. If playback never started, do not add it as a spoken turn. Include interruption status in model context. The text-visibility toggle changes presentation only and defaults to visible for a fresh page load. The robot speaking state follows audio start/end/stop events, not generation activity.
 
@@ -164,7 +166,9 @@ Implements `prd.md > Start and Spoken Conversation`.
 
 `llm.py` calls Ollama through HTTPX. `prompts.py` holds separate opening, conversation, and feedback instructions. The opening is AI-generated everyday conversation; subsequent replies relate to the user and normally include a relevant follow-up. Ask for short, natural replies (typically 1–3 sentences) and defer corrections until feedback.
 
-Use Qwen3 4B without thinking output, initially an 8,192-token context and bounded output. The full transcript stays in the browser; normal replies use recent context within the model budget. Feedback must cover all user turns: if a session exceeds the report input budget, split turns into bounded batches, collect quoted findings, and combine them into one report. Never silently claim to have reviewed omitted turns. This long-session path can be implemented after the short live loop works.
+Use Qwen3 4B without thinking output, initially an 8,192-token context and bounded output. The full transcript stays in the browser; normal replies use recent context within the model budget. Bound both reply context and feedback input by measured UTF-8 bytes (`llm.INPUT_BYTES`), not character counts, so multi-byte text cannot overflow the context window. An oversized newest turn keeps its final characters and marks earlier text as omitted from reply context.
+
+Feedback must cover all user turns: split user turns into bounded batches (`llm.feedback_batches`), review every batch, collect quoted findings, and combine them into one report. Never silently claim to have reviewed omitted turns. A failure in any batch fails the whole report rather than returning a partial one. The combined report states how many user turns were reviewed when more than one batch was needed.
 
 ### Farewell and Feedback
 
@@ -176,6 +180,8 @@ After a farewell, finish the final user transcription, stop accepting practice t
 
 Request structured findings `{category, quote, suggestion, explanation}` plus a brief summary. Each quote must occur in an actual user turn; reject unsupported quotes and retry once with explicit grounding instructions. Empty findings are valid: explain that no clear wording issues were found rather than inventing mistakes. Format the same accepted report for visible text, spoken synthesis, and storage. Quote checking prevents fabricated source examples but does not prove a correction is linguistically sound; check that manually in the early milestone.
 
+A finding whose suggestion repeats its quote carries no advice: on the first attempt treat it as invalid output and retry, then drop that single finding rather than losing the whole report. Ungrounded quotes always fail the batch. The report prompt must ask for a sentence-by-sentence review so an error in an early sentence is not skipped because later sentences are correct, and must show that shape with an example that does not reuse earlier example wording.
+
 ### Local Voice Output
 
 Implements `prd.md > Start and Spoken Conversation`, `prd.md > Speech Text and Speaking Animation`, and `prd.md > Farewell and Feedback Report`.
@@ -185,6 +191,8 @@ Use `PiperVoice.load(local_voice_path)` once and `synthesize_wav(text, wave_file
 Preserve decorative Unicode emojis and ASCII emoticons in generated replies and the formatted feedback report for display and storage. Remove them only from the derived text passed to Piper synthesis. Keep ordinary wording, punctuation, and validated source quotes intact; an emoji-only reply is an error rather than successful empty speech. The learner clarified during hands-on review that emojis should remain visible but never be pronounced by the voice.
 
 The learner further limited displayed emojis to emotional answers. Default prompts to no emojis for routine conversation; use a conservative phrase-based presentation filter to retain generated decoration only for clear emotional reactions such as congratulations or sympathy. Routine feedback has no hard-coded emoji. Apply the filter to the generated report summary and remove decoration from instructional suggestions/explanations, preserving source quotes. This is a simple POC presentation heuristic, not a general sentiment classifier.
+
+Speak long feedback in chunks so one request never exceeds a comfortable synthesis length: split the accepted report text at paragraph or word boundaries, synthesize and play each chunk in order, and show Preparing feedback between chunks. A failed chunk retries with the same generated words rather than regenerating the report. The voice itself stays a single local Piper voice selected by `SPEAK_FLUENT_VOICE`; `scripts/download_voice.py` and `scripts/compare_voices.py` let the learner download and render other local voices for a listening comparison without adding an in-app model picker.
 
 ### Markdown Conversation Store
 
@@ -216,7 +224,7 @@ All routes are local, under `/api`, using Vite's proxy. JSON requests carry a `r
 
 | Route | Request | Successful response |
 | --- | --- | --- |
-| `GET /api/health` | None | `{ready, checks: {ollama, chat_model, stt, tts, history_writable}, problems[]}` |
+| `GET /api/health` | None | `{ready, checks: {ollama, chat_model, stt, tts, history_writable, vad_assets}, problems[]}` |
 | `POST /api/transcribe` | `audio/wav`, mono PCM16 at 16 kHz | `{text, is_farewell}`; empty text means no usable speech and `is_farewell: false` |
 | `POST /api/reply` | `{request_id, opening, turns[]}` | `{request_id, text}` |
 | `POST /api/report` | `{request_id, turns[]}` | `{request_id, summary, findings[], report_text}` |
@@ -225,7 +233,7 @@ All routes are local, under `/api`, using Vite's proxy. JSON requests carry a `r
 | `GET /api/conversations` | None | `{sessions: [{id, title, completed_at}], warnings: [{filename, message}]}`; sessions newest first, per-file warnings displayed in the sidebar |
 | `GET /api/conversations/{id}` | Generated UUID | `{id, title, markdown}` or 404 |
 
-Check request formats and bounded sizes before inference. Reasonable initial transport bounds are 10 MiB per audio upload and 2 MiB per session JSON; report excess clearly rather than truncating. Long-context handling operates within these generous POC transport bounds. Do not log conversation contents by default.
+Check request formats and bounded sizes before inference. Reasonable initial transport bounds are 10 MiB per audio upload and 2 MiB per session JSON; report excess clearly rather than truncating. Long-context handling operates within these generous POC transport bounds. Do not log conversation contents by default. Validation errors must not echo the submitted text back. Readiness also confirms the browser's local VAD/ONNX assets exist, so a missing `frontend/public/vendor/` copy is reported before practice starts rather than failing mid-session.
 
 ### Python to Ollama
 
@@ -299,8 +307,12 @@ speak-fluent/
 │   ├── llm.py                        # Ollama requests, context budget, grounded reports
 │   ├── prompts.py                    # Opening, practice, report prompts
 │   ├── farewell.py                   # Clear closing-utterance matching
+│   ├── spoken_text.py                # Emoji/emoticon handling for display and voice
 │   └── history.py                    # Atomic Markdown save and read/list
 ├── scripts/download_models.py        # Online, rerunnable model setup only
+├── scripts/download_voice.py         # Optional extra local voice for comparison
+├── scripts/compare_voices.py         # Render one sentence per local voice
+├── scripts/verify_speech.py          # Real-model API smoke check
 ├── models/
 │   ├── README.md                     # Exact tested models, sources, licenses, sizes
 │   ├── whisper-small.en/             # Downloaded model/tokenizer, ignored
@@ -309,17 +321,19 @@ speak-fluent/
 └── tests/
     ├── test_farewell.py               # Closing intent versus incidental mention
     ├── test_history.py                # Restart persistence, idempotency, failed-write behavior
-    ├── test_feedback.py               # Grounding and incomplete-output rejection
-    └── conversation.test.js           # Late reply cannot play after interruption
+    ├── test_feedback.py               # Grounding, batching, incomplete-output rejection
+    ├── test_runtime.py                # Cancellation, request bounds, service failures
+    └── conversation.test.js           # Race, ordering, retry, and report-chunk checks
 ```
 
 Existing learning/agent configuration folders are repository tooling, outside the application architecture. Generated dependency directories and the future build checklist are omitted from this planned app tree.
 
 ## Important Failure Modes
 
-1. **Microphone or audio playback:** “Microphone unavailable. Allow microphone access in this browser and check your Linux input device, then retry.” If playback is blocked, offer an explicit Play/Retry action. Clear speaking animation whenever audio stops. Preserve active text while the page stays open.
+1. **Microphone or audio playback:** “Microphone unavailable. Allow microphone access in this browser and check your Linux input device, then retry.” If playback is blocked, offer an explicit Play/Retry action. Clear speaking animation whenever audio stops. Preserve active text while the page stays open. A microphone that disappears mid-session reports “Microphone disconnected” with a Retry microphone action.
 2. **Missing, slow, or failed AI:** readiness names the missing model/service and the setup command. During runtime show “Local AI could not finish this reply/report. Check that Ollama is running, then retry.” Keep recognized turns; do not invent output or mark a failed report complete. Synthesis failures offer retry for the same generated text.
-3. **History save/read failure:** “Your session is still open, but could not be saved. Check free disk space and data/conversations permissions, then retry.” A malformed/unreadable history file produces a visible per-file warning while other entries still load. Do not erase or replace it.
+3. **History save/read failure:** “Your session is still open, but could not be saved. Check free disk space and data/conversations permissions, then retry.” A malformed/unreadable history file produces a visible per-file warning while other entries still load. Do not erase or replace it. An unwritable history folder fails readiness with that guidance instead of a session that looks finished.
+4. **Browser assets missing:** readiness reports that the local VAD/ONNX copies are absent and names `npm --prefix frontend ci`. Practice must not start on a half-installed frontend.
 
 ## Verification and First Build Checkpoint
 

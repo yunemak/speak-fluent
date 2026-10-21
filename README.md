@@ -5,9 +5,8 @@ interrupt when you need to, and say goodbye to hear useful wording feedback.
 
 **Build status:** the speech loop and saved history are tested and reviewed; final offline/recovery work is in progress.
 Completed conversations are saved locally after feedback playback and can be reopened
-from the sidebar after restarting the app. This version supports short feedback
-inputs (14,000 user-text characters); it reports an error rather than silently
-omitting turns from longer sessions.
+from the sidebar after restarting the app. Long conversations are reviewed in batches, so
+every spoken turn is covered by the feedback report.
 
 ## Requirements
 
@@ -129,6 +128,26 @@ If saving fails, keep the page open, fix disk space or folder permissions, and p
 without replaying feedback. Unreadable or malformed history files show warnings
 while other entries remain available; the app leaves those files unchanged.
 
+## Comparing voices
+
+The default voice is `en_US-lessac-medium`. Other local Piper voices can be tried
+without changing the interface:
+
+```bash
+.venv/bin/python scripts/download_voice.py en_US-amy-medium
+.venv/bin/python scripts/compare_voices.py     # writes models/voice-samples/*.wav
+```
+
+Play the samples, then start Python with the voice you prefer:
+
+```bash
+SPEAK_FLUENT_VOICE=en_US-amy-medium .venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+```
+
+The voice is loaded once per process, so restart Python after changing it. Voices are
+downloaded locally and stay offline; see [model sources and licenses](models/README.md)
+for the separate terms that apply to each voice.
+
 ## Troubleshooting
 
 - **Microphone unavailable:** allow microphone access for `127.0.0.1:5173`, check the
@@ -142,7 +161,12 @@ while other entries remain available; the app leaves those files unchanged.
 - **Audio paused:** press Retry to unlock browser playback. Check the output device
   and headphone volume if playback is running but you cannot hear it.
 - **VAD assets missing:** rerun `npm --prefix frontend ci`. Keep vad-web and browser
-  ONNX Runtime versions paired; changing only one can break voice detection.
+  ONNX Runtime versions paired; changing only one can break voice detection. The
+  readiness check names this when the local browser assets are absent.
+- **Microphone disconnected mid-session:** the app offers **Retry microphone**, which
+  reopens the microphone and keeps the turns already recognized.
+- **The AI stopped answering:** the app keeps the words it already generated and
+  retries the voice instead of asking the model for new ones.
 
 Runtime logs contain stage timings rather than conversation text. Audio stays
 transient. Model weights, `.venv`, local tools, and generated vendor assets are
