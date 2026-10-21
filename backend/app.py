@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
 from . import llm
-from .config import CHAT_MODEL, HISTORY_PATH, OLLAMA_URL, ROOT, VOICE_PATH, WHISPER_PATH
+from .config import CHAT_MODEL, HISTORY_PATH, OLLAMA_URL, ROOT, WHISPER_PATH
 from .farewell import is_farewell
 from .schemas import CompletedSession, ReplyRequest, ReportRequest, SpeechRequest
 from .speech import Speech
@@ -126,7 +126,6 @@ async def health(request: Request):
         problems.append("Start Ollama: OLLAMA_NO_CLOUD=1 ollama serve")
     for key, path, loader, lock in [
         ("stt", WHISPER_PATH / "model.bin", speech.load_recognizer, recognition_lock),
-        ("tts", VOICE_PATH, speech.load_voice, voice_lock),
     ]:
         try:
             if not path.is_file():
@@ -135,6 +134,14 @@ async def health(request: Request):
             checks[key] = True
         except Exception:
             problems.append(f"Could not load {key} model. Run .venv/bin/python scripts/download_models.py and retry.")
+    try:
+        kokoro_ready, piper_ready = speech.voice.available()
+        if not (kokoro_ready or piper_ready):
+            raise FileNotFoundError
+        await cpu(request, voice_lock, speech.voice.load)
+        checks["tts"] = True
+    except Exception:
+        problems.append("Could not load a local voice. Run .venv/bin/python scripts/download_models.py and retry.")
     try:
         await asyncio.to_thread(history.check_writable)
         checks["history_writable"] = True
@@ -161,6 +168,11 @@ async def list_conversations():
 @app.get("/api/conversations/{session_id}")
 async def get_conversation(session_id: UUID):
     return await asyncio.to_thread(history.get, session_id)
+
+
+@app.delete("/api/conversations/{session_id}")
+async def delete_conversation(session_id: UUID):
+    return await asyncio.to_thread(history.delete, session_id)
 
 
 @app.post("/api/transcribe")

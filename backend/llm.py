@@ -6,7 +6,7 @@ from pydantic import ValidationError
 from .config import CHAT_MODEL, OLLAMA_URL
 from .prompts import CONVERSATION, FEEDBACK, OPENING
 from .schemas import Feedback, ReportFeedback
-from .spoken_text import display_text, spoken_text
+from .spoken_text import display_text, is_contraction_only_change, spoken_text
 
 
 class ModelError(Exception):
@@ -119,8 +119,9 @@ def validate_feedback(raw, user_texts, strict=True):
     """Ground every quote in the learner's words.
 
     An ungrounded quote is a fabrication and always fails. A finding whose
-    suggestion repeats the quote carries no advice; it is dropped instead of
-    failing the whole report, so one weak item cannot lose the other findings.
+    suggestion repeats its quote, or differs only by optional contraction
+    style, carries no advice: it is dropped instead of failing the whole
+    report, so one weak item cannot lose the other findings.
     """
     feedback = Feedback.model_validate_json(raw)
     grounded = []
@@ -130,6 +131,8 @@ def validate_feedback(raw, user_texts, strict=True):
         if finding.quote.strip() == finding.suggestion.strip():
             if strict:
                 raise ValueError("Feedback suggested no change.")
+            continue
+        if is_contraction_only_change(finding.quote, finding.suggestion):
             continue
         grounded.append(finding)
     return feedback.model_copy(update={"findings": grounded})

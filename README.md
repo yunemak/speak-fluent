@@ -118,6 +118,8 @@ after the current session finishes.
 You can open the `.md` file directly in a text editor. Its small JSON metadata header
 records the format version, session ID and timestamps; the rest is ordinary Markdown.
 Each new practice gets its own file, and retrying a save cannot create duplicates.
+Open an entry and use **Delete this conversation** to remove it; the app asks for
+confirmation, deletes only that one Markdown file, and keeps the other entries.
 
 For the hands-on check: finish and open one session, inspect its file, restart Python
 and Vite with the commands above, and reopen it. Then finish another session and
@@ -130,23 +132,25 @@ while other entries remain available; the app leaves those files unchanged.
 
 ## Comparing voices
 
-The default voice is `en_US-lessac-medium`. Other local Piper voices can be tried
-without changing the interface:
+The default voice is Kokoro's `af_heart`, a local neural voice that sounds far more
+natural than the older Piper voices. Every local voice can be rendered for a
+listening comparison:
 
 ```bash
-.venv/bin/python scripts/download_voice.py en_US-amy-medium
 .venv/bin/python scripts/compare_voices.py     # writes models/voice-samples/*.wav
 ```
 
 Play the samples, then start Python with the voice you prefer:
 
 ```bash
-SPEAK_FLUENT_VOICE=en_US-amy-medium .venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+SPEAK_FLUENT_VOICE=af_nicole .venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
 ```
 
-The voice is loaded once per process, so restart Python after changing it. Voices are
-downloaded locally and stay offline; see [model sources and licenses](models/README.md)
-for the separate terms that apply to each voice.
+Kokoro voice names are two-letter codes: `af` American female, `am` American male,
+`bf` British female, `bm` British male, plus other accents. If the Kokoro files are
+missing, the app falls back to a local Piper voice automatically. Voices are
+downloaded once and stay offline; see
+[model sources and licenses](models/README.md) for the terms that apply to each.
 
 ## Troubleshooting
 

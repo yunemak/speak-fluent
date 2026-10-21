@@ -22,6 +22,9 @@ export const api = {
   save: (body, signal) => json('/conversations', body, signal),
   history: async signal => (await request('/conversations', { signal })).json(),
   conversation: async (id, signal) => (await request(`/conversations/${encodeURIComponent(id)}`, { signal })).json(),
+  deleteConversation: async (id, signal) => (await request(`/conversations/${encodeURIComponent(id)}`, {
+    method: 'DELETE', signal,
+  })).json(),
   health: async signal => (await request('/health', { signal })).json(),
   reply: (body, signal) => json('/reply', body, signal),
   report: (body, signal) => json('/report', body, signal),

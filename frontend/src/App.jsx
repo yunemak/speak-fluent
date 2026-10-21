@@ -45,6 +45,13 @@ export default function App() {
     void conversation.start();
   };
 
+  const remove = async () => {
+    await api.deleteConversation(selectedId);
+    setSelectedId(null);
+    setEntry({ data: null, loading: false, error: '' });
+    setHistoryRefresh(value => value + 1);
+  };
+
   return <div className={styles.app}>
     <HistorySidebar {...history} disabled={!historyAvailable} selectedId={selectedId}
       onSelect={setSelectedId} onRefresh={() => setHistoryRefresh(value => value + 1)} />
@@ -57,7 +64,8 @@ export default function App() {
       </header>
       {selectedId && historyAvailable
         ? <HistoryView entry={entry.data?.id === selectedId ? entry.data : null} loading={entry.loading} error={entry.error}
-          onStart={start} onBack={() => setSelectedId(null)} onRetry={() => setEntryRefresh(value => value + 1)} />
+          onStart={start} onBack={() => setSelectedId(null)} onRetry={() => setEntryRefresh(value => value + 1)}
+          onDelete={remove} />
         : <ConversationView conversation={{ ...conversation, start }} showText={showText} />}
       <footer className={styles.footer}>Just a conversation. No scores. No pressure.</footer>
     </main>

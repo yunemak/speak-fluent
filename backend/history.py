@@ -157,3 +157,21 @@ class ConversationStore:
             return {"id": metadata["id"], "title": metadata["title"], "markdown": markdown}
         except (ValueError, OSError, UnicodeError) as error:
             raise HistoryError("Could not open this conversation. Check the file and its permissions; it was left unchanged.", "history_read_failed") from error
+
+    def delete(self, session_id):
+        """Remove one saved conversation. Only files inside this store are touched."""
+        try:
+            paths = self._matches(session_id)
+            if not paths:
+                raise HistoryError("This saved conversation was not found.", "history_not_found", 404)
+            if len(paths) != 1:
+                raise HistoryError("Several files share this session ID. Nothing was deleted.", "history_conflict", 409)
+            path = paths[0]
+            if path.is_symlink() or path.resolve().parent != self.directory:
+                raise HistoryError("Linked history files are not supported; nothing was deleted.", "history_conflict", 409)
+            path.unlink()
+            return {"id": str(session_id), "deleted": True, "filename": path.name}
+        except HistoryError:
+            raise
+        except (ValueError, OSError, UnicodeError) as error:
+            raise HistoryError("Could not delete this conversation. Check the file and its permissions.", "history_delete_failed") from error

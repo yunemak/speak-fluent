@@ -49,6 +49,16 @@ def test_a_finding_without_a_real_change_is_dropped_not_fatal():
     assert relaxed.findings[0].suggestion == "Yesterday I went to the park."
 
 
+def test_a_contraction_suggestion_is_never_reported():
+    raw = json.dumps({"summary": "All good.", "findings": [{
+        "category": "grammar", "quote": "I am doing well", "suggestion": "I'm doing well",
+        "explanation": "Use the contraction in informal speech.",
+    }]})
+    feedback = llm.validate_feedback(raw, ["I am doing well"], strict=False)
+    assert feedback.findings == []
+    assert "No clear wording issues" in llm.format_feedback(feedback)
+
+
 @pytest.mark.parametrize("data", [
     {"done": False, "message": {"content": "unfinished"}},
     {"done": True, "done_reason": "length", "message": {"content": "partial"}},
@@ -96,7 +106,6 @@ def test_reply_keeps_faces_for_display_but_synthesis_skips_them(monkeypatch):
     monkeypatch.setattr(llm, "chat", chat)
     text = asyncio.run(llm.reply([], True))
     assert text == "Congratulations! 🎉 How do you feel? :)"
-    spoken = []
 
     class RecordingVoice:
         def synthesize_wav(self, text, wav):
@@ -105,9 +114,19 @@ def test_reply_keeps_faces_for_display_but_synthesis_skips_them(monkeypatch):
             wav.writeframes(b"\0\0")
 
     speech = Speech()
-    speech.voice = RecordingVoice()
+
+    class RecordingVoice:
+        def __init__(self):
+            self.spoken = []
+
+        def synthesize(self, text):
+            self.spoken.append(spoken_text(text))
+            return b"RIFF" + b"\0" * 40
+
+    recording = RecordingVoice()
+    speech.voice = recording
     assert speech.synthesize(text).startswith(b"RIFF")
-    assert spoken == ["Congratulations! How do you feel?"]
+    assert recording.spoken == ["Congratulations! How do you feel?"]
 
 
 def test_report_keeps_display_faces_and_grounded_quotes_but_speaks_only_words():

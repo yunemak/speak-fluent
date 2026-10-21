@@ -42,6 +42,19 @@ Quote only the smallest complete clause that needs fixing. Change only the actua
 error, preserving other correct clauses (a present-tense habit can follow a past event).
 If the original is correct and clear, leave it alone. Output findings: [] when so.
 
+Contractions are optional in spoken English and are never a mistake: 'I am doing
+well' and 'I'm doing well' are both correct, and so are 'do not' / 'don't',
+'it is' / "it's", 'I will' / "I'll", 'cannot' / "can't". Never suggest a
+contraction, and never report the absence of one. The same applies to other
+optional choices: article use, 'gonna' vs 'going to', register, and word order
+variants that are standard in speech. Only report a grammar problem that a
+teacher would actually mark as wrong.
+
+Word choice findings need a real reason: report a word only when the learner's
+choice is unusual, informal in a way that would confuse a listener, or clearly
+means something different from what they intended. Never offer a 'more elegant'
+or 'more professional' alternative to a common everyday word.
+
 Work through the input sentence by sentence, from the first to the last. A mistake
 in an early sentence must be reported even when later sentences are correct, and a
 correct early sentence must not be 'corrected' just because a later one has a
@@ -52,6 +65,8 @@ unless the same words appear in the real input):
 Input: ["We was late for the meeting."]
 Output: {"summary":"Your message was clear. Here is one change.","findings":[{"category":"grammar","quote":"We was late for the meeting.","suggestion":"We were late for the meeting.","explanation":"Use 'were' with 'we' in the past."}]}
 Input: ["I take the bus every morning."]
+Output: {"summary":"That sentence is correct, so there is nothing to fix.","findings":[]}
+Input: ["I am doing well today."]
 Output: {"summary":"That sentence is correct, so there is nothing to fix.","findings":[]}
 Apply these principles to the supplied input; never copy a quote from an example
 unless those exact words are also in the real user turns."""

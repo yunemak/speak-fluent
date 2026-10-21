@@ -72,7 +72,9 @@ Source: `scope.md > Inspiration & Identity` and `The Core Loop`, expanded in the
 
 A goodbye or similar farewell ends practice and triggers a spoken report. The report covers grammar mistakes, appropriate word choices, understandable wording, and ways to simplify unnecessarily complex sentences. It uses examples from the actual conversation and gives actionable alternatives where needed. It must not invent mistakes when no relevant issue was found. Understandability refers to wording, not pronunciation or accent grading.
 
-An explicit closing request such as “end the conversation” also triggers feedback. Briefly spoken farewells must still be recognized when filtering out non-speech interruptions.
+The report must not report optional style choices as mistakes. Contractions such as "I am" versus "I'm", article use, and everyday register are correct as spoken. Only wording a teacher would mark as wrong is reported. This was clarified during the build's hands-on review.
+
+An explicit closing request such as “end the conversation” also triggers feedback. Briefly spoken farewells must still be recognized when filtering out non-speech interruptions, and a farewell spoken over the AI's voice must still end the session.
 
 The report is also available as text in the saved conversation. As AI speech, its live text follows the show/hide control. After the report finishes, the microphone Start button is available again.
 
@@ -88,12 +90,15 @@ Source: `scope.md > The Core Loop`, `What "Working" Looks Like`, and `Explicitly
 
 The old-conversations area lets the user open a completed conversation and read its transcript and report. The transcript distinguishes the user's speech from the AI's speech; the report is presented separately from the practice exchange. Completed transcripts and reports are saved locally in a dedicated, human-readable file format, such as Markdown or plain text, and remain available after closing and reopening the app. The exact format and file organization will be decided in `4-spec`.
 
+The user can also delete a saved conversation from the history view, after an explicit confirmation. Deleting removes that one saved file and leaves the other conversations untouched. This was requested during the build's hands-on review.
+
 **Acceptance criteria**
 - A completed practice session appears in old conversations.
 - Opening it displays that session's user and AI turns and its feedback report.
 - Starting another conversation produces a separate session rather than replacing the previous one.
 - After closing and reopening the app, previously completed conversations can still be opened with their transcripts and reports intact.
 - Saved conversation content can be read in a local Markdown or plain-text file without the app.
+- A saved conversation can be deleted, after confirmation, without affecting the others.
 
 Source: extension of `scope.md > The Core Loop` requested during the PRD interview. History is limited to viewing transcripts and reports.
 

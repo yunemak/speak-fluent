@@ -134,6 +134,50 @@ def test_link_outside_history_is_neither_read_nor_overwritten(tmp_path):
     assert external.read_text() == "outside data"
 
 
+def test_delete_removes_only_the_requested_file(tmp_path):
+    store = ConversationStore(tmp_path)
+    first, second = session(), session()
+    a, b = store.save(first), store.save(second)
+    result = store.delete(first.id)
+    assert result["deleted"] is True
+    assert not (tmp_path / a["filename"]).exists()
+    assert (tmp_path / b["filename"]).exists()
+    assert [row["id"] for row in store.list()["sessions"]] == [str(second.id)]
+    with pytest.raises(HistoryError) as error:
+        store.delete(first.id)
+    assert error.value.status == 404
+
+
+def test_delete_rejects_unknown_ids_and_links_outside_the_store(tmp_path):
+    directory = tmp_path / "history"
+    directory.mkdir()
+    external = tmp_path / "outside.md"
+    external.write_text("outside data")
+    data = session()
+    (directory / f"existing-{data.id}.md").symlink_to(external)
+    store = ConversationStore(directory)
+    with pytest.raises(HistoryError):
+        store.delete(data.id)
+    assert external.read_text() == "outside data"
+    with pytest.raises(HistoryError) as error:
+        store.delete(uuid4())
+    assert error.value.status == 404
+
+
+def test_api_delete_removes_the_session_and_keeps_the_others(tmp_path, monkeypatch):
+    monkeypatch.setattr(app_module, "history", ConversationStore(tmp_path))
+    data, other = session(), session()
+    with TestClient(app_module.app) as client:
+        for item in [data, other]:
+            client.post("/api/conversations", json=item.model_dump(mode="json"))
+        assert client.delete(f"/api/conversations/{data.id}").status_code == 200
+        assert client.get(f"/api/conversations/{data.id}").status_code == 404
+        assert client.get(f"/api/conversations/{other.id}").status_code == 200
+        assert client.delete(f"/api/conversations/{data.id}").status_code == 404
+        assert client.delete("/api/conversations/not-a-uuid").status_code == 422
+        assert len(list(tmp_path.glob("*.md"))) == 1
+
+
 def test_api_reload_lists_reads_and_retries_saved_sessions(tmp_path, monkeypatch):
     monkeypatch.setattr(app_module, "history", ConversationStore(tmp_path))
     data, other = session(), session()
