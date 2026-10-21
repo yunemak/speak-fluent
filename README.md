@@ -3,9 +3,9 @@
 An English conversation partner that runs on your Linux computer. Speak naturally,
 interrupt when you need to, and say goodbye to hear useful wording feedback.
 
-**Build status:** first speech-loop slice tested and reviewed; history is being built.
-Completed conversations currently stay in page memory; reloading clears them.
-Saved Markdown history is the next slice. This version supports short feedback
+**Build status:** the speech loop and saved history are tested and reviewed; final offline/recovery work is in progress.
+Completed conversations are saved locally after feedback playback and can be reopened
+from the sidebar after restarting the app. This version supports short feedback
 inputs (14,000 user-text characters); it reports an error rather than silently
 omitting turns from longer sessions.
 
@@ -88,7 +88,7 @@ Emojis are reserved for clear emotional replies and are skipped by voice output.
 Say **“Goodbye”** or **“End the conversation”** to finish and hear feedback.
 Brief speech candidates are checked for a closing phrase without stopping playback
 unless the phrase is recognized; other short candidates are ignored. Input is stopped during
-the report; Start returns after playback ends.
+the report; after playback, the transcript and report are saved and Start returns.
 
 The three local processes have separate jobs: Vite serves the interface, Python
 coordinates recognition and voice, and Ollama generates replies. Ctrl+C in each
@@ -105,7 +105,29 @@ the full disconnected-network learner check is still pending.
    transcript too: feedback can only evaluate what recognition captured.
 
 Notice delays, cut-off pauses, recognition mistakes, and whether feedback is useful.
-Reloading closes the current session and clears its in-memory transcript in this slice.
+Reloading clears unfinished sessions; successfully saved sessions remain in history.
+
+## Saved conversations
+
+Finish a conversation and wait for the feedback to finish playing. The app writes
+one readable Markdown file under **`data/conversations/`**, named with its UTC
+completion timestamp and session UUID, then refreshes the sidebar. Click a dated
+entry to read its full transcript and separate feedback report. Hidden live text,
+visible emojis, and interruption notes are preserved. History selection is available
+after the current session finishes.
+
+You can open the `.md` file directly in a text editor. Its small JSON metadata header
+records the format version, session ID and timestamps; the rest is ordinary Markdown.
+Each new practice gets its own file, and retrying a save cannot create duplicates.
+
+For the hands-on check: finish and open one session, inspect its file, restart Python
+and Vite with the commands above, and reopen it. Then finish another session and
+confirm both entries remain available.
+
+If saving fails, keep the page open, fix disk space or folder permissions, and press
+**Retry save**. The app retains the transcript/report in memory and retries saving
+without replaying feedback. Unreadable or malformed history files show warnings
+while other entries remain available; the app leaves those files unchanged.
 
 ## Troubleshooting
 
@@ -124,14 +146,16 @@ Reloading closes the current session and clears its in-memory transcript in this
 
 Runtime logs contain stage timings rather than conversation text. Audio stays
 transient. Model weights, `.venv`, local tools, and generated vendor assets are
-ignored by Git. Future completed files will live under ignored `data/conversations/`.
+ignored by Git. Completed Markdown files live under ignored `data/conversations/`.
+Verification can use an isolated directory by setting `SPEAK_FLUENT_HISTORY_DIR`
+before starting Python; normal startup uses the repository's `data/conversations/`.
 
 ## Verification
 
 ```bash
 npm --prefix frontend run build
 node --test tests/conversation.test.js
-.venv/bin/python -m pytest tests/test_farewell.py tests/test_feedback.py
+.venv/bin/python -m pytest tests
 ```
 
 With Python and Ollama running, check the real models using an artificial spoken
@@ -149,5 +173,5 @@ or whether the conversation feels comfortable; try the hands-on check above.
 
 Capture the browser window, browser/system audio, and your microphone as separate
 audio inputs (for example in OBS). Make a short recording and listen back to
-confirm both voices are audible while using headphones. Final offline review,
-history persistence, and submission preparation come in later build steps.
+confirm both voices are audible while using headphones. Final offline review and
+submission preparation come in later build steps.
