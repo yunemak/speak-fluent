@@ -5,7 +5,7 @@ const labels = {
   idle: 'Your space to speak', starting: 'Getting ready', listening: 'Listening',
   transcribing: 'Understanding your words', thinking: 'Thinking', speaking: 'Speaking',
   'preparing-feedback': 'Preparing feedback', 'feedback-speaking': 'Your feedback',
-  complete: 'A little more fluent', error: 'Let’s get you back to practice',
+  saving: 'Saving your conversation', complete: 'A little more fluent', error: 'Let’s get you back to practice',
 };
 
 export default function ConversationView({ conversation: c, showText }) {
@@ -16,7 +16,8 @@ export default function ConversationView({ conversation: c, showText }) {
     <h1>{labels[c.phase]}</h1>
     <p className={styles.description} role="status">
       {c.phase === 'idle' ? 'Find your words. We’ll keep the conversation going.' :
-        c.phase === 'complete' ? 'Nice work showing up. Ready for another conversation?' :
+        c.phase === 'complete' ? 'Saved on your computer. Ready for another conversation?' :
+          c.phase === 'saving' ? 'Keeping your transcript and feedback together…' :
           c.userSpeaking ? 'Take your time. I’m listening.' :
             c.phase === 'listening' ? 'Your turn. Say goodbye whenever you’re ready for feedback.' :
               c.phase === 'starting' ? 'Checking local models and opening your microphone…' :
@@ -34,7 +35,7 @@ export default function ConversationView({ conversation: c, showText }) {
     {c.phase === 'idle' && <p className={styles.hint}>Put on your headphones. Your partner speaks first.</p>}
     {c.warning && <div className={styles.warning} role="alert">
       <p>{c.warning}</p>
-      {c.retryable && <button className="quiet" onClick={c.retry}>Retry</button>}
+      {c.retryable && <button className="quiet" onClick={c.retry}>{c.retryLabel}</button>}
     </div>}
     {c.turns.length > 0 && <div className={styles.transcript}>
       <div className={styles.transcriptHeader}><span>THIS CONVERSATION</span><span>{showText ? 'Live transcript' : 'AI text hidden'}</span></div>
@@ -46,7 +47,7 @@ export default function ConversationView({ conversation: c, showText }) {
       {c.report && showText && <article className={styles.report}>
         <h2>Your feedback</h2><p>{c.report}</p>
       </article>}
-      {c.phase === 'complete' && <p className={styles.hint}>This first build keeps the conversation on this page. Reloading clears it.</p>}
+      {c.savedConversation && <p className={styles.hint}>Saved in <code>data/conversations/{c.savedConversation.filename}</code>. Open it from the sidebar anytime.</p>}
     </div>}
   </section>;
 }

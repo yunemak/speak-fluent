@@ -13,7 +13,7 @@ function deferred() {
 }
 
 function harness(overrides = {}) {
-  const calls = { replies: [], plays: [], transcriptions: [], reports: 0, stops: 0, paused: 0 };
+  const calls = { replies: [], plays: [], transcriptions: [], saves: [], reports: 0, stops: 0, paused: 0 };
   let output;
   const audio = {
     unlock: async () => {}, listen: async () => {}, close: async () => {},
@@ -29,6 +29,7 @@ function harness(overrides = {}) {
   };
   const api = {
     health: async () => ({ ready: true }),
+    save: async body => { calls.saves.push(body); return { id: body.id, title: 'Saved practice', filename: `${body.id}.md` }; },
     reply: async body => { calls.replies.push(body); return { request_id: body.request_id, text: 'How was your day?' }; },
     speech: async body => body.text,
     transcribe: async wav => { calls.transcriptions.push(wav); return { text: wav, is_farewell: wav === 'Goodbye.' }; },
@@ -238,11 +239,40 @@ test('farewell closes input, drops later queued speech, and completes only after
   assert.equal(calls.paused, 1);
   assert.equal(calls.replies.length, 1);
   assert.equal(c.state.phase, 'feedback-speaking');
+  assert.equal(calls.saves.length, 0);
   c.speechStart(); // report cannot be interrupted by a practice turn
   assert.equal(c.state.phase, 'feedback-speaking');
   audio.end(); await setImmediate();
   assert.equal(c.state.phase, 'complete');
+  assert.equal(calls.saves.length, 1);
+  assert.equal(calls.saves[0].report_text, 'Useful feedback.');
   assert.deepEqual(c.state.turns.filter(t => t.role === 'user').map(t => t.text), ['Goodbye.']);
+});
+
+test('save failure retains the finished session and retries the same ID without replaying feedback', async () => {
+  const saves = [];
+  const { c, audio, calls } = harness({ save: async body => {
+    saves.push(structuredClone(body));
+    if (saves.length === 1) throw new Error('Disk full. Please retry saving.');
+    return { id: body.id, title: 'Saved practice', filename: `${body.id}.md` };
+  } });
+  const starting = c.start();
+  await setImmediate(); audio.end(); await starting;
+  c.speechStart(); c.speechEnd('Goodbye.');
+  await setImmediate();
+  assert.equal(saves.length, 0);
+  audio.end(); await setImmediate();
+  assert.equal(c.state.phase, 'error');
+  assert.equal(c.state.retryLabel, 'Retry save');
+  assert.equal(c.state.report, 'Useful feedback.');
+  assert.equal(c.state.savedConversation, null);
+  const plays = calls.plays.length;
+  await c.retry();
+  assert.equal(c.state.phase, 'complete');
+  assert.deepEqual(saves[0], saves[1]);
+  assert.equal(calls.plays.length, plays);
+  assert.equal(calls.reports, 1);
+  assert.equal(c.state.savedConversation.id, c.state.sessionId);
 });
 
 test('recognition retry preserves the failed utterance and never invents text', async () => {

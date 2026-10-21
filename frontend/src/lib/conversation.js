@@ -1,6 +1,7 @@
 export const initialState = () => ({
   phase: 'idle', turns: [], report: '', speaking: false,
-  userSpeaking: false, warning: '', retryable: false, sessionId: null,
+  userSpeaking: false, warning: '', retryable: false, retryLabel: 'Retry', sessionId: null,
+  savedConversation: null,
 });
 
 // Framework-independent so the actual interruption/queue logic can be race-tested.
@@ -68,10 +69,10 @@ export class Conversation {
     }
   }
 
-  fail(error, retry) {
+  fail(error, retry, retryLabel = 'Retry') {
     if (error.name === 'AbortError') return;
     this.retryAction = retry;
-    this.update({ phase: 'error', speaking: false, warning: error.message, retryable: true });
+    this.update({ phase: 'error', speaking: false, warning: error.message, retryable: true, retryLabel });
   }
 
   speechStart() {
@@ -181,7 +182,10 @@ export class Conversation {
       if (result !== 'ended') return;
       if (report) {
         await this.audio.close();
-        if (current()) this.update({ phase: 'complete', completedAt: new Date().toISOString() });
+        if (current()) {
+          this.update({ completedAt: new Date().toISOString() });
+          await this.save();
+        }
       } else {
         this.update({ phase: 'listening' });
       }
@@ -190,9 +194,32 @@ export class Conversation {
     }
   }
 
+  async save() {
+    const session = this.session;
+    this.update({ phase: 'saving', warning: '', retryable: false });
+    try {
+      const saved = await this.api.save({
+        id: this.state.sessionId,
+        created_at: this.state.createdAt,
+        completed_at: this.state.completedAt,
+        turns: this.state.turns,
+        report_text: this.state.report,
+      }, this.lifetime.signal);
+      if (session !== this.session) return;
+      if (saved.id !== this.state.sessionId) throw new Error('Saved session ID did not match. Please retry saving.');
+      this.update({ phase: 'complete', savedConversation: saved });
+    } catch (error) {
+      if (session === this.session) this.fail(error, () => this.save(), 'Retry save');
+    }
+  }
+
   async retry() {
     if (!this.retryAction || !this.state.retryable) return;
     const action = this.retryAction;
+    if (this.state.retryLabel === 'Retry save') {
+      await action();
+      return;
+    }
     this.update({ retryable: false, warning: '', userSpeaking: false, phase: 'listening' });
     try {
       await this.audio.unlock();

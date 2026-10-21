@@ -7,5 +7,6 @@ WHISPER_PATH = MODELS / "whisper-small.en"
 VOICE_PATH = MODELS / "piper" / "en_US-lessac-medium.onnx"
 OLLAMA_URL = "http://127.0.0.1:11434"
 CHAT_MODEL = "qwen3:4b-q4_K_M"
+HISTORY_PATH = Path(os.environ.get("SPEAK_FLUENT_HISTORY_DIR", ROOT / "data" / "conversations"))
 os.environ["HF_HUB_OFFLINE"] = "1"
 os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"

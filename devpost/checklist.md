@@ -9,7 +9,7 @@ Build mode: learn. Explain each verified slice, pause for the learner to try it,
 
 ## Slices
 
-- [ ] **1. Have a real offline-capable spoken conversation and hear useful feedback**
+- [x] **1. Have a real offline-capable spoken conversation and hear useful feedback**
   Becomes usable: Start the local app, hear an AI-generated greeting, speak hands-free, interrupt a reply, and say goodbye to hear feedback grounded in the words you actually used. Live AI text can be hidden; a simple robot indicates actual playback.
   Why now: This proves the unique kernel and the highest-risk integration before investing in history or polish. Real recognition, local generation, voice quality, delay, and interruption behavior must work together on the target machine.
   PRD ref: `prd.md > The Core Journey` (steps 1–5), `prd.md > Start and Spoken Conversation`, `prd.md > Speech Text and Speaking Animation`, `prd.md > Farewell and Feedback Report`, `prd.md > States and Boundaries`.
@@ -48,7 +48,7 @@ Learn mode also pauses for slice 2's learner check. Fast mode carries its histor
 
 ### Slice 1 verification and resume state
 
-The learner confirmed the closing repair with “Works ok” after previously confirming noise rejection and intentional interruptions. Slice 1 is ready for its verified checkpoint and progression to history. The larger recognizer's accuracy on the previously reported individual words was not explicitly confirmed; keep that observation available for final review. If local processes have stopped, follow `README.md > Start the app`; this machine uses `.tools/ollama/bin/ollama`.
+The learner confirmed the closing repair with “Works ok” after previously confirming noise rejection and intentional interruptions. Slice 1 is committed as `5e6fff1`; continuing with history in learn mode. The optional Discord project-thread suggestion was given after this checkpoint. The larger recognizer's accuracy on the previously reported individual words was not explicitly confirmed; keep that observation available for final review. If local processes have stopped, follow `README.md > Start the app`; this machine uses `.tools/ollama/bin/ollama`.
 
 - Mechanical checks passed: production frontend build, all 6 controller race/ordering tests, and all 19 farewell/feedback tests. The frontend build emits a non-blocking bundle-size advisory for the bundled browser inference runtime.
 - Real-model verification: `.venv/bin/python scripts/verify_speech.py` passed using synthesized test speech. Whisper preserved the deliberate tense error; a relevant park follow-up and a grounded past-tense correction were generated. A clean sentence produced no findings. Report wording still needs the learner's judgment; quote validation cannot prove linguistic quality.

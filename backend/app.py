@@ -3,6 +3,7 @@ import contextlib
 import logging
 import time
 import wave
+from uuid import UUID
 
 import httpx
 from fastapi import FastAPI, Request
@@ -10,13 +11,15 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
 from . import llm
-from .config import CHAT_MODEL, OLLAMA_URL, VOICE_PATH, WHISPER_PATH
+from .config import CHAT_MODEL, HISTORY_PATH, OLLAMA_URL, VOICE_PATH, WHISPER_PATH
 from .farewell import is_farewell
-from .schemas import ReplyRequest, ReportRequest, SpeechRequest
+from .schemas import CompletedSession, ReplyRequest, ReportRequest, SpeechRequest
 from .speech import Speech
+from .history import ConversationStore, HistoryError
 
 app = FastAPI(title="Speak Fluent", docs_url=None, redoc_url=None)
 speech = Speech()
+history = ConversationStore(HISTORY_PATH)
 recognition_lock = asyncio.Lock()
 voice_lock = asyncio.Lock()
 logger = logging.getLogger("uvicorn.error")
@@ -35,6 +38,11 @@ async def validation_error(_request, _error):
 @app.exception_handler(llm.ModelError)
 async def model_error(_request, error):
     return failure("model_failed", str(error))
+
+
+@app.exception_handler(HistoryError)
+async def history_error(_request, error):
+    return failure(error.code, str(error), error.status, error.status == 503)
 
 
 @app.middleware("http")
@@ -87,7 +95,7 @@ async def cpu(request, lock, function, *args):
 
 @app.get("/api/health")
 async def health(request: Request):
-    checks = {"ollama": False, "chat_model": False, "stt": False, "tts": False}
+    checks = {"ollama": False, "chat_model": False, "stt": False, "tts": False, "history_writable": False}
     problems = []
     try:
         async with httpx.AsyncClient(timeout=3, trust_env=False) as client:
@@ -110,7 +118,27 @@ async def health(request: Request):
             checks[key] = True
         except Exception:
             problems.append(f"Could not load {key} model. Run .venv/bin/python scripts/download_models.py and retry.")
+    try:
+        await asyncio.to_thread(history.check_writable)
+        checks["history_writable"] = True
+    except OSError:
+        problems.append("History is not writable. Check free disk space and data/conversations permissions, then retry.")
     return {"ready": all(checks.values()), "checks": checks, "problems": problems}
+
+
+@app.post("/api/conversations")
+async def save_conversation(data: CompletedSession):
+    return await asyncio.to_thread(history.save, data)
+
+
+@app.get("/api/conversations")
+async def list_conversations():
+    return await asyncio.to_thread(history.list)
+
+
+@app.get("/api/conversations/{session_id}")
+async def get_conversation(session_id: UUID):
+    return await asyncio.to_thread(history.get, session_id)
 
 
 @app.post("/api/transcribe")

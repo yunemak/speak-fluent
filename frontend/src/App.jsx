@@ -1,27 +1,64 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useConversation } from './hooks/useConversation.js';
 import ConversationView from './components/ConversationView.jsx';
+import HistorySidebar from './components/HistorySidebar.jsx';
+import HistoryView from './components/HistoryView.jsx';
+import { api } from './lib/api.js';
 import styles from './App.module.css';
 
 export default function App() {
   const conversation = useConversation();
   const [showText, setShowText] = useState(true);
+  const [history, setHistory] = useState({ sessions: [], warnings: [], loading: true, error: '' });
+  const [historyRefresh, setHistoryRefresh] = useState(0);
+  const [selectedId, setSelectedId] = useState(null);
+  const [entry, setEntry] = useState({ data: null, loading: false, error: '' });
+  const [entryRefresh, setEntryRefresh] = useState(0);
+  const historyAvailable = ['idle', 'complete'].includes(conversation.phase);
+  const savedId = conversation.savedConversation?.id;
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setHistory(previous => ({ ...previous, loading: true, error: '' }));
+    api.history(controller.signal).then(result => {
+      if (!controller.signal.aborted) setHistory({ ...result, loading: false, error: '' });
+    }).catch(error => {
+      if (!controller.signal.aborted) setHistory(previous => ({ ...previous, loading: false, error: error.message }));
+    });
+    return () => controller.abort();
+  }, [historyRefresh, savedId]);
+
+  useEffect(() => {
+    if (!selectedId || !historyAvailable) return;
+    const controller = new AbortController();
+    setEntry({ data: null, loading: true, error: '' });
+    api.conversation(selectedId, controller.signal).then(data => {
+      if (!controller.signal.aborted) setEntry({ data, loading: false, error: '' });
+    }).catch(error => {
+      if (!controller.signal.aborted) setEntry({ data: null, loading: false, error: error.message });
+    });
+    return () => controller.abort();
+  }, [selectedId, entryRefresh, historyAvailable]);
+
+  const start = () => {
+    setSelectedId(null);
+    void conversation.start();
+  };
+
   return <div className={styles.app}>
-    <aside className={styles.sidebar}>
-      <a className={styles.brand} href="/" aria-label="Speak Fluent home">sf<span>●</span></a>
-      <h2>Conversations</h2>
-      <p className={styles.empty}>Your practice has a place here.</p>
-      <p className={styles.note}>Saved history arrives in the next build step.</p>
-      <div className={styles.local}><span /> Runs on your computer</div>
-    </aside>
+    <HistorySidebar {...history} disabled={!historyAvailable} selectedId={selectedId}
+      onSelect={setSelectedId} onRefresh={() => setHistoryRefresh(value => value + 1)} />
     <main className={styles.main}>
       <header className={styles.header}>
         <div><strong>Speak Fluent</strong><span>A little practice, every day.</span></div>
-        <button className="quiet" onClick={() => setShowText(value => !value)} aria-pressed={!showText}>
+        {!selectedId && <button className="quiet" onClick={() => setShowText(value => !value)} aria-pressed={!showText}>
           {showText ? 'Hide text' : 'Show text'}
-        </button>
+        </button>}
       </header>
-      <ConversationView conversation={conversation} showText={showText} />
+      {selectedId && historyAvailable
+        ? <HistoryView entry={entry.data?.id === selectedId ? entry.data : null} loading={entry.loading} error={entry.error}
+          onStart={start} onBack={() => setSelectedId(null)} onRetry={() => setEntryRefresh(value => value + 1)} />
+        : <ConversationView conversation={{ ...conversation, start }} showText={showText} />}
       <footer className={styles.footer}>Just a conversation. No scores. No pressure.</footer>
     </main>
   </div>;
