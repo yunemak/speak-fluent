@@ -71,17 +71,16 @@ See [model sources and licenses](models/README.md).
 
 ## Start the app
 
-Keep Ollama running. In a second terminal:
+After the one-time setup, run:
 
 ```bash
-.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+./run.sh
 ```
 
-In a third terminal:
-
-```bash
-npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort
-```
+The script starts Ollama, the Python backend, and the frontend together. It uses
+the project-local Ollama installation when available, or `ollama` from your PATH,
+and reuses an already-running Ollama server. Press **Ctrl+C** to stop the processes
+started by the script. You can also invoke the script from another directory.
 
 Open **http://127.0.0.1:5173**. Use headphones, press **Start a conversation**, and
 allow microphone access. Your partner speaks first. Pause for about one second
@@ -102,8 +101,8 @@ heard while the app is listening becomes a normal turn. Input is stopped during
 the report; after playback, the transcript and report are saved and Start returns.
 
 The three local processes have separate jobs: Vite serves the interface, Python
-coordinates recognition and voice, and Ollama generates replies. Ctrl+C in each
-terminal stops that process. With setup complete, runtime uses only local assets;
+coordinates recognition and voice, and Ollama generates replies.
+With setup complete, runtime uses only local assets;
 the full disconnected-network learner check passed.
 
 ## First hands-on check
@@ -134,7 +133,7 @@ Open an entry and use **Delete this conversation** to remove it; the app asks fo
 confirmation, deletes only that one Markdown file, and keeps the other entries.
 
 For the hands-on check: finish and open one session, inspect its file, restart Python
-and Vite with the commands above, and reopen it. Then finish another session and
+and Vite with `./run.sh`, and reopen it. Then finish another session and
 confirm both entries remain available.
 
 If saving fails, keep the page open, fix disk space or folder permissions, and press
@@ -155,10 +154,10 @@ for a listening comparison:
 .venv/bin/python scripts/compare_voices.py     # writes models/voice-samples/*.wav
 ```
 
-Play the samples, then start Python with the voice you prefer:
+Play the samples, then start the app with the voice you prefer:
 
 ```bash
-SPEAK_FLUENT_VOICE=af_nicole .venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+SPEAK_FLUENT_VOICE=af_nicole ./run.sh
 ```
 
 Kokoro voice names are two-letter codes: `af` American female, `am` American male,
