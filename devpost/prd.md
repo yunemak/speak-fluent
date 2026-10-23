@@ -45,13 +45,15 @@ The microphone Start button begins the session, with the AI speaking first. Conv
 
 The user can speak at any time during the conversation. When they interrupt the AI, its current speech stops and the app listens to their turn. Situation-dependent decisions about whether to continue speaking are deferred.
 
-Breathing, coughing, and other non-speech sounds should not count as interruptions. A brief speech-confirmation window is acceptable to reduce false interruptions; verify the balance against real speech during the hands-on check.
+Breathing, coughing, and other non-speech sounds should not count as interruptions. A brief speech-confirmation window and a recent-speech requirement reduce false interruptions. If a confirmed sound turns out not to be speech, the interrupted reply resumes from the point where it stopped instead of being lost. A confident short phrase heard while the app is listening is a turn, not silently ignored. Verify the balance against real speech during the hands-on check.
 
 **Acceptance criteria**
 - Pressing Start produces an audible AI opening without requiring the user to speak first.
 - A few spoken exchanges work without per-turn button presses.
 - At least one AI follow-up is relevant to what the user said.
 - Speaking during an AI reply stops its speech and allows the user's turn to be used for the next response.
+- A cough or brief noise during AI speech does not permanently cut off the reply; if playback pauses, it continues from the same point.
+- A short spoken phrase such as “I’m doing well” becomes a turn and receives a reply.
 
 Source: `scope.md > The Core Loop`, `The Unique Kernel`, and `The POC Boundary`.
 

@@ -24,6 +24,7 @@ export class BrowserAudio {
   stream = null;
   output = null;
   generation = 0;
+  lastOffset = 0;
 
   // Called synchronously from Start/Retry so the browser permits audible output.
   unlock() {
@@ -82,16 +83,20 @@ export class BrowserAudio {
     this.output?.finish('interrupted');
   }
 
-  async play(bytes, current, onStart) {
+  async play(bytes, current, onStart, offset = 0) {
     const context = this.context;
     const decoded = await context.decodeAudioData(bytes.slice(0));
     if (!current()) return 'interrupted';
     if (context.state !== 'running') throw new Error('Audio is paused by the browser. Press Retry to allow playback.');
+    const startAt = Math.max(0, Math.min(offset, Math.max(0, decoded.duration - 0.05)));
+    this.lastOffset = 0;
     const source = context.createBufferSource();
     source.buffer = decoded;
     source.connect(context.destination);
     return new Promise((resolve, reject) => {
       let settled = false;
+      let started = false;
+      let startedAt = 0;
       const stateChanged = () => {
         if (!settled && context.state !== 'running') {
           output.finish('blocked');
@@ -101,6 +106,11 @@ export class BrowserAudio {
         finish: reason => {
           if (settled) return;
           settled = true;
+          if (started && reason === 'interrupted') {
+            // Remember where the learner cut in so a false alarm can resume.
+            this.lastOffset = Math.min(decoded.duration,
+              startAt + Math.max(0, context.currentTime - startedAt));
+          }
           source.onended = null;
           context.removeEventListener('statechange', stateChanged);
           if (reason !== 'ended') source.stop();
@@ -114,7 +124,9 @@ export class BrowserAudio {
       context.addEventListener('statechange', stateChanged);
       source.onended = () => output.finish('ended');
       try {
-        source.start();
+        startedAt = context.currentTime;
+        source.start(0, startAt);
+        started = true;
         onStart();
       } catch (error) {
         this.output = null;

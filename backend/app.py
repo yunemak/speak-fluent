@@ -193,13 +193,14 @@ async def transcribe(request: Request):
     async def operation():
         started = time.monotonic()
         try:
-            text = await cpu(request, recognition_lock, speech.transcribe, audio)
+            result = await cpu(request, recognition_lock, speech.transcribe, audio)
         except (ValueError, wave.Error, EOFError):
             return failure("invalid_audio", "Use mono PCM16 WAV audio at 16 kHz.", 422, False)
         except Exception:
             return failure("recognition_failed", "Local speech recognition failed. Check model setup, then retry this turn.")
         logger.info("Recognition completed in %.2fs", time.monotonic() - started)
-        return {"text": text, "is_farewell": is_farewell(text)}
+        return {"text": result["text"], "is_farewell": is_farewell(result["text"]),
+                "no_speech_prob": result["no_speech_prob"]}
 
     return await until_disconnect(request, operation())
 

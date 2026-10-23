@@ -34,6 +34,9 @@ export class Conversation {
     this.accepting = false;
     this.draining = false;
     this.needsReply = false;
+    this.delivery = null;
+    this.interrupted = null;
+    this.opening = false;
   }
 
   update(changes) {
@@ -64,6 +67,9 @@ export class Conversation {
     this.draining = false;
     this.needsReply = false;
     this.accepting = false;
+    this.delivery = null;
+    this.interrupted = null;
+    this.opening = false;
     this.retryAction = null;
     this.state = { ...initialState(), phase: 'starting', sessionId: crypto.randomUUID(), createdAt: new Date().toISOString() };
     this.update({});
@@ -114,7 +120,17 @@ export class Conversation {
 
   speechStart() {
     if (!this.accepting || this.state.phase === 'error') return;
+    const delivery = this.delivery;
+    const wasSpeaking = this.state.speaking;
+    const wasThinking = this.state.phase === 'thinking';
     this.invalidate();
+    if (delivery && (wasSpeaking || wasThinking)) {
+      // Keep the reply so a cough or other noise can put it back on screen and
+      // audio where the learner cut in.
+      this.interrupted = {
+        delivery, offset: wasSpeaking ? this.audio.lastOffset : null, opening: this.opening,
+      };
+    }
     this.update({ userSpeaking: true, phase: 'listening', warning: '' });
   }
 
@@ -146,18 +162,14 @@ export class Conversation {
         }
         if (session !== this.session) return;
         this.queue.shift();
-        // Short noises never stop playback, change UI state, or become turns.
-        // Only a recognized whole closing phrase may finish the session.
-        if (farewellOnly && !result.is_farewell) continue;
-        if (!result.text.trim()) {
-          this.update({ warning: "I didn’t catch that—please try again." });
-          continue;
-        }
-        this.update({ turns: [...this.state.turns, {
-          id: crypto.randomUUID(), role: 'user', text: result.text, interrupted: false,
-        }], warning: '' });
-        this.needsReply = true;
-        if (result.is_farewell) {
+        const text = (result.text || '').trim();
+        const seconds = typeof wav?.byteLength === 'number'
+          ? Math.max(0, (wav.byteLength - 44) / 32000) : null;
+        const unsure = !text || (result.no_speech_prob ?? 0) > 0.6;
+
+        if (result.is_farewell && text) {
+          this.interrupted = null;
+          this.addTurn(text);
           this.accepting = false;
           this.queue = [];
           this.needsReply = false;
@@ -167,6 +179,36 @@ export class Conversation {
           await this.respond(false, true);
           return;
         }
+
+        if (farewellOnly) {
+          // A brief capture that never confirmed as speech. Only a confident
+          // phrase heard while nothing is playing may become a turn.
+          if (unsure || this.state.phase !== 'listening') continue;
+          this.interrupted = null;
+          this.addTurn(text);
+          continue;
+        }
+
+        if (unsure) {
+          if (this.interrupted) {
+            // What stopped the reply was noise, not a turn. Resume it where the
+            // learner cut in rather than leaving the reply half spoken.
+            const { delivery, offset, opening } = this.interrupted;
+            this.interrupted = null;
+            delivery.offset = offset ?? 0;
+            delivery.resuming = true;
+            await this.respond(opening, false, delivery);
+            continue;
+          }
+          // A very short burst that the recogniser could not use is noise, not
+          // a failed turn. Do not nag about every cough.
+          if (!text && seconds !== null && seconds < 0.6) continue;
+          this.update({ warning: "I didn’t catch that—please try again." });
+          continue;
+        }
+
+        this.interrupted = null;
+        this.addTurn(text);
       }
     } catch (error) {
       if (session === this.session) this.fail(error, () => this.drain());
@@ -183,6 +225,13 @@ export class Conversation {
     }
   }
 
+  addTurn(text) {
+    this.update({ turns: [...this.state.turns, {
+      id: crypto.randomUUID(), role: 'user', text, interrupted: false,
+    }], warning: '' });
+    this.needsReply = true;
+  }
+
   async respond(opening, report = false, cached = null) {
     this.invalidate();
     const generation = this.generation;
@@ -192,6 +241,12 @@ export class Conversation {
     const current = () => session === this.session && generation === this.generation && !controller.signal.aborted;
     const request_id = `${this.state.sessionId}:${generation}`;
     const delivery = cached || { text: null, chunks: null, index: 0, audio: null };
+    if (!cached) this.interrupted = null;
+    delivery.offset ??= 0;
+    if (!report) {
+      this.delivery = delivery;
+      this.opening = opening;
+    }
     this.update({ phase: report ? 'preparing-feedback' : 'thinking', warning: '', retryable: false });
     try {
       if (!delivery.text) {
@@ -221,19 +276,31 @@ export class Conversation {
         const result = await this.audio.play(delivery.audio, current, () => {
           if (!current()) return;
           if (!report) {
-            this.playingTurn = crypto.randomUUID();
-            this.update({ turns: [...this.state.turns, {
-              id: this.playingTurn, role: 'assistant', text: delivery.text, interrupted: false,
-            }] });
+            if (delivery.resuming && delivery.turnId) {
+              // The turn is already in the transcript, only paused part-way.
+              this.playingTurn = delivery.turnId;
+              this.update({ turns: this.state.turns.map(turn => turn.id === delivery.turnId
+                ? { ...turn, interrupted: false } : turn) });
+            } else {
+              this.playingTurn = crypto.randomUUID();
+              delivery.turnId = this.playingTurn;
+              this.update({ turns: [...this.state.turns, {
+                id: this.playingTurn, role: 'assistant', text: delivery.text, interrupted: false,
+              }] });
+            }
+            delivery.resuming = false;
+            delivery.offset = 0;
           }
           this.update({ phase: report ? 'feedback-speaking' : 'speaking', speaking: true });
-        });
+        }, delivery.offset);
         if (!current()) return;
         this.playingTurn = null;
         this.update({ speaking: false });
         if (result !== 'ended') return;
         delivery.index += 1;
         delivery.audio = null;
+        delivery.turnId = null;
+        delivery.offset = 0;
         if (report && delivery.index < delivery.chunks.length && !delivery.next) {
           this.update({ phase: 'preparing-feedback' });
         }
@@ -245,6 +312,7 @@ export class Conversation {
           await this.save();
         }
       } else {
+        this.delivery = null;
         this.update({ phase: 'listening' });
       }
     } catch (error) {

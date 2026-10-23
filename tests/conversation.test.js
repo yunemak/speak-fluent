@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { setImmediate } from 'node:timers/promises';
 import { Conversation, speechChunks } from '../frontend/src/lib/conversation.js';
-import { speechDetectionOptions } from '../frontend/src/lib/vad.js';
+import { createSpeechGate, speechDetectionOptions } from '../frontend/src/lib/vad.js';
 import { FrameProcessor } from '../frontend/node_modules/@ricky0123/vad-web/dist/frame-processor.js';
 import { Message } from '../frontend/node_modules/@ricky0123/vad-web/dist/messages.js';
 
@@ -13,15 +13,23 @@ function deferred() {
 }
 
 function harness(overrides = {}) {
-  const calls = { replies: [], plays: [], transcriptions: [], saves: [], reports: 0, stops: 0, paused: 0 };
+  const calls = { replies: [], plays: [], offsets: [], transcriptions: [], saves: [], reports: 0, stops: 0, paused: 0 };
   let output;
   const audio = {
     unlock: async () => {}, listen: async callbacks => { audio.callbacks = callbacks; }, close: async () => {},
     pauseInput: async () => { calls.paused += 1; },
-    stop: () => { calls.stops += 1; output?.resolve('interrupted'); output = null; },
-    play: async (bytes, current, start) => {
+    lastOffset: 0,
+    stop: () => {
+      calls.stops += 1;
+      if (output) audio.lastOffset = 1.5;
+      output?.resolve('interrupted');
+      output = null;
+    },
+    play: async (bytes, current, start, offset = 0) => {
       if (!current()) return 'interrupted';
-      calls.plays.push(bytes); start();
+      calls.plays.push(bytes);
+      calls.offsets.push(offset);
+      start();
       output = deferred();
       return output.promise;
     },
@@ -40,8 +48,29 @@ function harness(overrides = {}) {
   return { c, api, audio, calls };
 }
 
-function detector(c, text = 'Recognized speech.') {
-  const options = speechDetectionOptions(() => c.speechStart(),
+test('confirmation rejects two short bursts that only add up over time', () => {
+  let confirmed = 0;
+  const gate = createSpeechGate(() => { confirmed += 1; });
+  for (let index = 0; index < 5; index += 1) gate.push(0.95, 32);
+  for (let index = 0; index < 4; index += 1) gate.push(0.05, 32);
+  for (let index = 0; index < 5; index += 1) gate.push(0.95, 32);
+  assert.equal(confirmed, 0);
+  for (let index = 0; index < 10; index += 1) gate.push(0.95, 32);
+  assert.equal(confirmed, 1);
+});
+
+test('a sustained 320 ms of speech confirms exactly once', () => {
+  let confirmed = 0;
+  const gate = createSpeechGate(() => { confirmed += 1; });
+  for (let index = 0; index < 9; index += 1) gate.push(0.95, 32);
+  assert.equal(confirmed, 0);
+  gate.push(0.95, 32);
+  assert.equal(confirmed, 1);
+  gate.push(0.95, 32);
+  assert.equal(confirmed, 1);
+});
+
+function detector(c, text = 'Recognized speech.') {  const options = speechDetectionOptions(() => c.speechStart(),
     (_samples, capture) => c.speechEnd(text, capture));
   let probability = 0;
   const processor = new FrameProcessor(async () => ({ isSpeech: probability, notSpeech: 1 - probability }),
@@ -96,6 +125,88 @@ test('confirmed speech interrupts at 320 ms and its captured turn still drives a
   assert.equal(calls.replies.at(-1).turns.at(-1).text, 'Recognized speech.');
   audio.end();
   await starting;
+});
+
+test('a confirmed noise burst resumes the stopped reply where it left off', async () => {
+  const { c, calls, audio } = harness();
+  const opening = c.start();
+  await setImmediate();
+  audio.end();
+  await opening;
+
+  c.speechStart();
+  c.speechEnd('Tell me more.');
+  await setImmediate();
+  assert.equal(c.state.phase, 'speaking');
+  const turns = c.state.turns.length;
+  const repliesBefore = calls.replies.length;
+
+  c.api.transcribe = async () => ({ text: '', is_farewell: false, no_speech_prob: 0.98 });
+  c.speechStart();
+  c.speechEnd(new ArrayBuffer(44 + 32000));
+  await setImmediate();
+  await setImmediate();
+
+  assert.equal(calls.offsets.at(-1), 1.5);
+  assert.equal(c.state.speaking, true);
+  assert.equal(c.state.turns.length, turns);
+  assert.equal(calls.replies.length, repliesBefore);
+  assert.equal(c.state.turns.at(-1).interrupted, false);
+  audio.end();
+  await setImmediate();
+  assert.equal(c.state.phase, 'listening');
+});
+
+test('a cough while the reply is being generated does not lose that reply', async () => {
+  const slow = deferred();
+  let replyCalls = 0;
+  const { c, calls, audio } = harness({
+    reply: async body => {
+      calls.replies.push(body);
+      replyCalls += 1;
+      if (replyCalls === 2) return slow.promise;
+      return { request_id: body.request_id, text: replyCalls === 1 ? 'How was your day?' : 'Let us keep talking.' };
+    },
+  });
+  const opening = c.start();
+  await setImmediate();
+  audio.end();
+  await opening;
+
+  c.speechStart();
+  c.speechEnd('I went to the park.');
+  await setImmediate();
+  assert.equal(c.state.phase, 'thinking');
+  assert.equal(calls.replies.length, 2);
+
+  c.api.transcribe = async () => ({ text: '', is_farewell: false, no_speech_prob: 0.99 });
+  c.speechStart();
+  c.speechEnd(new ArrayBuffer(44 + 32000));
+  await setImmediate();
+  await setImmediate();
+  assert.equal(calls.replies.length, 3);
+  assert.equal(c.state.phase, 'speaking');
+  slow.resolve({ request_id: 'old', text: 'Old reply' });
+  audio.end();
+  await setImmediate();
+  assert.equal(c.state.phase, 'listening');
+});
+
+test('a quiet short phrase heard while listening becomes a turn instead of being dropped', async () => {
+  const { c, audio } = harness();
+  const opening = c.start();
+  await setImmediate();
+  audio.end();
+  await opening;
+  c.api.transcribe = async () => ({ text: 'I am doing well.', is_farewell: false, no_speech_prob: 0.2 });
+  c.speechEnd(new ArrayBuffer(44 + 32000), { farewellOnly: true });
+  await setImmediate();
+  assert.equal(c.state.turns.at(-2).text, 'I am doing well.');
+  assert.equal(c.state.turns.at(-2).role, 'user');
+  assert.equal(c.state.phase, 'speaking');
+  audio.end();
+  await setImmediate();
+  assert.equal(c.state.phase, 'listening');
 });
 
 test('a brief goodbye bypasses the interruption threshold only after recognition confirms closing', async () => {

@@ -82,13 +82,16 @@ npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort
 
 Open **http://127.0.0.1:5173**. Use headphones, press **Start a conversation**, and
 allow microphone access. Your partner speaks first. Pause for about one second
-at the end of a turn. Speak over a reply to interrupt it; the browser now waits for
-about 320 ms of probable speech to reduce interruptions from brief noises, with
-buffered audio keeping the start of your words. Hide/show text whenever you want.
-Emojis are reserved for clear emotional replies and are skipped by voice output.
-Say **“Goodbye”** or **“End the conversation”** to finish and hear feedback.
-Brief speech candidates are checked for a closing phrase without stopping playback
-unless the phrase is recognized; other short candidates are ignored. Input is stopped during
+at the end of a turn. Speak over a reply to interrupt it; the browser waits for a
+short, sustained burst of probable speech so brief noises do not count, and keeps
+buffered audio so your first word is not lost. If a cough or other noise does stop
+a reply, the same reply resumes where it stopped instead of disappearing.
+Quiet speech is level-normalized before recognition.
+Hide/show text whenever you want. Emojis are reserved for clear emotional replies
+and are skipped by voice output. Say **“Goodbye”** or **“End the conversation”** to
+finish and hear feedback. Brief speech candidates are checked for a closing phrase
+without stopping playback unless the phrase is recognized; a confident short phrase
+heard while the app is listening becomes a normal turn. Input is stopped during
 the report; after playback, the transcript and report are saved and Start returns.
 
 The three local processes have separate jobs: Vite serves the interface, Python
