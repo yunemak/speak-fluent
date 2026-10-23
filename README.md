@@ -86,7 +86,9 @@ at the end of a turn. Speak over a reply to interrupt it; the browser waits for 
 short, sustained burst of probable speech so brief noises do not count, and keeps
 buffered audio so your first word is not lost. If a cough or other noise does stop
 a reply, the same reply resumes where it stopped instead of disappearing.
-Quiet speech is level-normalized before recognition.
+Quiet speech is level-normalized before recognition. Recognition is primed with
+a common everyday phrase so fast, casual greetings are less likely to be
+misheard.
 Hide/show text whenever you want. Emojis are reserved for clear emotional replies
 and are skipped by voice output. The live transcript follows the newest message
 automatically; if you scroll up to reread, it resumes following when you return

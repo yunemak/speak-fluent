@@ -17,3 +17,4 @@
 .transcript small { display: block; font-size: .7rem; color: var(--muted); margin-top: .6rem; }
 .report { background: #f4e6d6; }
 .report h2 { font-size: .9rem; font-weight: 600; margin: 0; }
+.end { height: 1px; scroll-margin-bottom: clamp(1.5rem, 4vh, 2.75rem); }

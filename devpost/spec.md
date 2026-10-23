@@ -115,7 +115,7 @@ Implements `prd.md > Screens and Layout`, `prd.md > Look and Feel`, and `prd.md 
 
 - Roughly 10% sidebar / 90% main area at the target desktop size. Use a small minimum sidebar width to keep history labels usable.
 - Keep the history sidebar pinned to the viewport during long-conversation scrolling, with its own overflow. On narrow screens use a bounded-height sticky history strip so practice content stays accessible.
-- Keep the live transcript following the newest turn as messages, interruption notes, and the report are added. Pause following when the learner scrolls up to reread, and resume once the view returns near the bottom.
+- Keep the live transcript following the newest turn as messages, interruption notes, and the report are added, with a visible gap between the newest message and the bottom of the viewport. Pause following when the learner scrolls up to reread, and resume once the view returns near the bottom.
 - Draw the simple 2D robot as a local SVG React component. Its balloon-like CSS background changes color only during actual audible playback, including feedback.
 - CSS Modules for components; global CSS variables for colors and spacing. Use system fonts so nothing loads from a font service.
 - Starting visual defaults for review: light neutral background, dark readable text, cool blue idle balloon, warm peach speaking balloon. These are implementation defaults, not previously chosen learner colors.
@@ -157,7 +157,7 @@ Store assistant text when its playback starts. Mark a cut-off reply “Interrupt
 
 Implements `prd.md > Start and Spoken Conversation` and `prd.md > States and Boundaries`.
 
-`app.py` validates requests, exposes readiness/history endpoints, and delegates to small service modules. `speech.py` loads faster-whisper and Piper once per process. Use `WhisperModel(local_path, device="cpu", compute_type="int8", local_files_only=True)`, supply 16 kHz samples, English language, and `condition_on_previous_text=False`. Peak-normalize quiet microphone audio toward 0.9 before recognition; clipped or quiet speech is otherwise easy to lose. Consume the segments iterator to perform recognition. Return a duration-weighted `no_speech_prob` with the text so the browser can distinguish a cough from a short real phrase. Do not ask recognition to fix grammar: the report needs the user's actual wording.
+`app.py` validates requests, exposes readiness/history endpoints, and delegates to small service modules. `speech.py` loads faster-whisper and Piper once per process. Use `WhisperModel(local_path, device="cpu", compute_type="int8", local_files_only=True)`, supply 16 kHz samples, English language, and `condition_on_previous_text=False`. Prime common everyday phrases with faster-whisper's `hotwords` (currently “I'm doing well, how are you?”) so fast, casual speech is less likely to become “Dean Well” or “Dingwell”; tests confirmed nearby wording such as “doing good” and a name followed by “well” stays unchanged. Peak-normalize quiet microphone audio toward 0.9 before recognition; clipped or quiet speech is otherwise easy to lose. Consume the segments iterator to perform recognition. Return a duration-weighted `no_speech_prob` with the text so the browser can distinguish a cough from a short real phrase. Do not ask recognition to fix grammar: the report needs the user's actual wording.
 
 Empty/silent results return to listening with “I didn't catch that—please try again.” Errors are distinct from an empty recognition. Audio is transient and is not saved as history.
 

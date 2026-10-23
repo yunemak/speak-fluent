@@ -6,6 +6,12 @@ import numpy as np
 from .config import WHISPER_PATH
 from .voice import Voice
 
+# Everyday phrases prime the recognizer without rewriting what the learner
+# actually said. This one fixed repeated "doing well" mishearings ("Dean
+# Well", "Dingwell") on fast and noisy speech, while tests confirmed that
+# "doing good", a name followed by "well", and "not doing well" stay intact.
+HOTWORDS = "I'm doing well, how are you?"
+
 
 class Speech:
     def __init__(self):
@@ -32,7 +38,8 @@ class Speech:
             samples = samples * (0.9 / peak)
         self.load_recognizer()
         segments, _ = self.whisper.transcribe(samples, language="en", beam_size=5,
-                                              condition_on_previous_text=False)
+                                              condition_on_previous_text=False,
+                                              hotwords=HOTWORDS)
         parts = list(segments)
         text = " ".join(segment.text.strip() for segment in parts).strip()
         if not text:

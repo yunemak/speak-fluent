@@ -73,7 +73,7 @@ export default function ConversationView({ conversation: c, showText }) {
         <h2>Your feedback</h2><p>{c.report}</p>
       </article>}
       {c.savedConversation && <p className={styles.hint}>Saved in <code>data/conversations/{c.savedConversation.filename}</code>. Open it from the sidebar anytime.</p>}
-      <div ref={endRef} aria-hidden="true" />
+      <div ref={endRef} className={styles.end} aria-hidden="true" />
     </div>}
   </section>;
 }
