@@ -51,6 +51,33 @@ def test_wav_bytes_helper_writes_pcm16():
         assert wav.getnframes() == 1000
 
 
+def test_low_pass_removes_high_frequency_hiss_but_keeps_speech_band():
+    import numpy as np
+    rate = 24000
+    time = np.arange(rate) / rate
+    voice = np.sin(2 * np.pi * 1000 * time).astype(np.float32)
+    hiss = np.sin(2 * np.pi * 11000 * time).astype(np.float32)
+    mixed = 0.4 * voice + 0.2 * hiss
+    filtered = Voice._low_pass(mixed, rate)
+
+    def amplitude(signal, frequency):
+        return abs(np.sum(signal * np.exp(-2j * np.pi * frequency * time))) * 2 / len(signal)
+
+    assert amplitude(filtered, 1000) > 0.39
+    assert amplitude(filtered, 11000) < 0.001
+    assert len(filtered) == len(mixed)
+
+
+def test_master_normalizes_and_fades_the_edges():
+    import numpy as np
+    rate = 24000
+    samples = np.ones(rate, dtype=np.float32) * 0.2
+    mastered = Voice._master(samples, rate)
+    assert float(np.max(np.abs(mastered))) == pytest.approx(0.9, abs=1e-4)
+    assert abs(float(mastered[0])) < 0.001
+    assert abs(float(mastered[-1])) < 0.001
+
+
 @pytest.mark.parametrize("quote,suggestion", [
     ("I am doing well", "I'm doing well"),
     ("I do not know", "I don't know"),

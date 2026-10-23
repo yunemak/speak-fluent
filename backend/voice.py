@@ -77,15 +77,34 @@ class Voice:
         return wav_bytes(audio, rate)
 
     @staticmethod
-    def _master(samples, rate):
-        """Remove DC, use the full headroom, and fade clicks at the edges.
+    def _low_pass(samples, rate, cutoff=9000.0, taps=127):
+        """Remove Kokoro's narrow high-frequency hiss without dulling speech.
 
-        Kokoro's raw output peaks around half scale. That makes the learner turn
-        the speaker up, which also exposes hiss from the playback chain. A clean
-        0.9 peak keeps the voice clear without changing its character.
+        The voice carries an unusually hot 9-12 kHz band that is heard as
+        static on headphones. A linear-phase low-pass keeps the natural 4-9 kHz
+        sibilance and removes the noisy top octave above 9 kHz.
+        """
+        cutoff = min(cutoff, rate * 0.45)
+        if samples.size < taps or cutoff >= rate / 2:
+            return samples
+        half = (taps - 1) / 2
+        positions = np.arange(taps) - half
+        kernel = np.sinc((cutoff / (rate / 2)) * positions) * np.hamming(taps)
+        kernel /= kernel.sum()
+        padded = np.pad(samples, (taps // 2, taps // 2), mode="edge")
+        return np.convolve(padded, kernel, mode="valid").astype(np.float32)
+
+    @staticmethod
+    def _master(samples, rate):
+        """Filter hiss, remove DC, use the headroom, and fade edge clicks.
+
+        Kokoro's raw output peaks around half scale and has a hot high band.
+        Mastering a clean 0.9 peak keeps the voice clear without making the
+        learner turn the speaker up into playback noise.
         """
         if samples.size == 0:
             return samples
+        samples = Voice._low_pass(samples, rate)
         samples = samples - float(samples.mean())
         peak = float(np.max(np.abs(samples)))
         if peak > 0:

@@ -41,6 +41,9 @@ not bundle model weights or establish a license for the learner's own applicatio
 Kokoro's voice pack contains many named voices (`af_heart`, `af_nicole`, `am_michael`,
 `bf_emma`, and others). Each one is a trained character with its own review history;
 `models/voice-samples/` renders them locally so a choice can be made by listening.
+At runtime `backend/voice.py` also applies a 9 kHz linear-phase low-pass before
+mastering, which removes Kokoro's hot 9–12 kHz band heard as static while keeping
+the 4–9 kHz speech band. The filter is part of the app, not the model files.
 
 `models/sources.json` records the successful setup's revisions. Ollama keeps its
 weights in its own local model store (normally `~/.ollama/models`). The initial
