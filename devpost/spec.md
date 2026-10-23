@@ -129,7 +129,7 @@ Implements `prd.md > Screens and Layout`, `prd.md > Look and Feel`, and `prd.md 
 
 Implements `prd.md > Screens and Layout` and `prd.md > Old Conversations`.
 
-`App.jsx` arranges `HistorySidebar`, `ConversationView`, and `HistoryView`. Fetch history on startup and after successful saving. Show an empty-history message on first use. History displays readable Markdown as escaped, whitespace-preserving text, with role headings and the report clearly separated; a Markdown rendering dependency is unnecessary.
+`App.jsx` arranges `HistorySidebar`, `ConversationView`, and `HistoryView`. Fetch history on startup and after successful saving. Show an empty-history message on first use. History displays the same chat-style transcript as live practice through the shared `Transcript` component: user and assistant turns use aligned bubbles, interruption notes remain visible, and the feedback report has its own styled bubble. The saved Markdown stays the canonical file; the detail API also parses it into structured `turns` and `report_text` so the history view never renders raw Markdown.
 
 During an active practice/report, keep history selection disabled with a short “Available after this session” hint so opening a file cannot accidentally replace the active conversation. Selecting history afterward keeps Start available for a new session.
 
@@ -177,7 +177,7 @@ Feedback must cover all user turns: split user turns into bounded batches (`llm.
 
 Implements `prd.md > Farewell and Feedback Report`.
 
-`farewell.py` matches whole closing utterances such as “goodbye,” “bye,” “bye for now,” “see you later,” “that's all for today,” “end the conversation,” and “stop this conversation,” with optional polite prefixes and endings. Avoid matching a quoted or incidental word inside a longer statement, such as “My friend said goodbye yesterday,” as well as negations and questions about ending. The matcher accepts a closing phrase surrounded by ordinary filler or courtesy words, and also accepts a closing spoken first with short trailing words, because the learner may say goodbye over the AI's voice and the recogniser then hears both. Words that show the learner is describing or questioning a goodbye block the match. Keep this deterministic for the POC rather than adding a separate intent model. The transcription endpoint returns `is_farewell` alongside recognized text. The controller checks it in utterance order before requesting another reply; when true, it closes practice input and ignores any subsequently captured utterances.
+`farewell.py` matches whole closing utterances such as “goodbye,” “bye,” “bye for now,” “see you later,” “that's all for today,” “end the conversation,” and “stop this conversation,” with optional polite prefixes and endings. It also recognizes clear decisions to end practice such as “let's call it a day,” “I need to go now,” “I should get going,” “I have to run,” “I'm off,” and “I'll let you go.” These action phrases end practice only when they finish the turn (up to four polite sign-off words may follow) and are not negated, reported as someone else's words, or asked about. A farewell at the end of a longer turn also ends practice, with up to two courtesy words after it, provided the earlier words do not narrate, negate, or question the goodbye. This covers “I have some business to take care of, so let's call it a day. Goodbye.” without ending practice for “I have to go to the store,” “I have to go to work tomorrow,” or “I call it a day when I finish work.” A closing spoken first with short trailing words still ends practice, because the learner may say goodbye over the AI's voice and the recogniser then hears both. Words that show the learner is describing or questioning a goodbye block the match. Keep this deterministic for the POC rather than adding a separate intent model. The transcription endpoint returns `is_farewell` alongside recognized text. The controller checks it in utterance order before requesting another reply; when true, it closes practice input and ignores any subsequently captured utterances.
 
 After a farewell, finish the final user transcription, stop accepting practice turns, and generate feedback. Pause microphone detection during the report: practice has ended. Feedback includes grammar, word choices, understandable wording, and simplification where there is useful evidence; pronunciation and accent are excluded.
 
@@ -205,7 +205,7 @@ Implements `prd.md > Old Conversations`.
 
 `history.py` writes one UTF-8 file under `data/conversations/<UTC-timestamp>-<UUID>.md`. The file contains a title, format version, ID, creation/completion timestamps, `## Transcript`, role-labeled turns with interruption notes, and `## Feedback Report`. Use timestamp-based titles rather than another model call.
 
-Write to a temporary file in the same directory and atomically rename after successful report playback. A failed save preserves the current session in browser memory and offers Retry save. Repeating a save with the same session ID is idempotent and cannot create another conversation or overwrite a different one. A small metadata header is enough to list files; return the body unchanged for viewing. Constrain IDs to generated UUIDs and resolve files only inside the history directory.
+Write to a temporary file in the same directory and atomically rename after successful report playback. A failed save preserves the current session in browser memory and offers Retry save. Repeating a save with the same session ID is idempotent and cannot create another conversation or overwrite a different one. A small metadata header is enough to list files. On detail read, parse the body into structured turns and report text while keeping the raw `markdown` in the response for compatibility; the Markdown file remains canonical and readable on its own. Constrain IDs to generated UUIDs and resolve files only inside the history directory.
 
 Deleting one saved conversation is an explicit, confirmed action from the history view: the browser asks for confirmation, the backend removes only the matching file inside the history directory, and the sidebar refreshes. A missing file returns 404, a file outside the store is refused, and other entries stay untouched.
 
@@ -238,7 +238,7 @@ All routes are local, under `/api`, using Vite's proxy. JSON requests carry a `r
 | `POST /api/speech` | `{request_id, text}` | `audio/wav` bytes; browser retains originating request ID |
 | `POST /api/conversations` | `{id, created_at, completed_at, turns[], report_text}` | `{id, title, filename}` after atomic save |
 | `GET /api/conversations` | None | `{sessions: [{id, title, completed_at}], warnings: [{filename, message}]}`; sessions newest first, per-file warnings displayed in the sidebar |
-| `GET /api/conversations/{id}` | Generated UUID | `{id, title, markdown}` or 404 |
+| `GET /api/conversations/{id}` | Generated UUID | `{id, title, markdown, turns: [{id, role, text, interrupted}], report_text}` or 404 |
 | `DELETE /api/conversations/{id}` | Generated UUID | `{id, deleted, filename}`; removes only that one file inside the history directory |
 
 Check request formats and bounded sizes before inference. Reasonable initial transport bounds are 10 MiB per audio upload and 2 MiB per session JSON; report excess clearly rather than truncating. Long-context handling operates within these generous POC transport bounds. Do not log conversation contents by default. Validation errors must not echo the submitted text back. Readiness also confirms the browser's local VAD/ONNX assets exist, so a missing `frontend/public/vendor/` copy is reported before practice starts rather than failing mid-session.
@@ -298,8 +298,10 @@ speak-fluent/
 │       │   ├── Robot.module.css
 │       │   ├── HistorySidebar.jsx    # Completed session list
 │       │   ├── HistorySidebar.module.css
-│       │   ├── HistoryView.jsx       # Readable saved transcript and report
-│       │   └── HistoryView.module.css
+│       │   ├── HistoryView.jsx       # Saved transcript and report using shared chat bubbles
+│       │   ├── HistoryView.module.css
+│       │   ├── Transcript.jsx        # Shared live/history bubbles and feedback report
+│       │   └── Transcript.module.css
 │       ├── hooks/useConversation.js # React binding for session orchestration
 │       └── lib/
 │           ├── api.js                # Local HTTP calls and typed-by-convention errors

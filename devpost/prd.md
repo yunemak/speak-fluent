@@ -76,12 +76,12 @@ A goodbye or similar farewell ends practice and triggers a spoken report. The re
 
 The report must not report optional style choices as mistakes. Contractions such as "I am" versus "I'm", article use, and everyday register are correct as spoken. Only wording a teacher would mark as wrong is reported. This was clarified during the build's hands-on review.
 
-An explicit closing request such as “end the conversation” also triggers feedback. Briefly spoken farewells must still be recognized when filtering out non-speech interruptions, and a farewell spoken over the AI's voice must still end the session.
+An explicit closing request such as “end the conversation” also triggers feedback. A clear statement of intent to leave, such as “I have to go now” or “let's call it a day,” ends practice too, while future plans and reported, negated, or questioned goodbyes remain ordinary conversation. Briefly spoken farewells must still be recognized when filtering out non-speech interruptions, and a farewell spoken over the AI's voice must still end the session.
 
 The report is also available as text in the saved conversation. As AI speech, its live text follows the show/hide control. After the report finishes, the microphone Start button is available again.
 
 **Acceptance criteria**
-- Saying a clear farewell transitions to feedback rather than another practice question.
+- Saying a clear farewell or clearly stating that the user needs to leave transitions to feedback rather than another practice question.
 - A conversation containing a clear wording or grammar mistake produces a report identifying it and suggesting an improvement.
 - Suggestions for clearer or simpler wording refer to something the user actually said.
 - The report is audible, can be read afterward, and is followed by the option to start a new conversation.
@@ -90,7 +90,7 @@ Source: `scope.md > The Core Loop`, `What "Working" Looks Like`, and `Explicitly
 
 ### Old Conversations
 
-The old-conversations area lets the user open a completed conversation and read its transcript and report. The transcript distinguishes the user's speech from the AI's speech; the report is presented separately from the practice exchange. Completed transcripts and reports are saved locally in a dedicated, human-readable file format, such as Markdown or plain text, and remain available after closing and reopening the app. The exact format and file organization will be decided in `4-spec`.
+The old-conversations area lets the user open a completed conversation and read its transcript and report in the same chat-style interface as live practice, with aligned user and AI bubbles. The report is presented separately from the practice exchange. Completed transcripts and reports are saved locally in a dedicated, human-readable file format, such as Markdown or plain text, and remain available after closing and reopening the app. The Markdown file remains the canonical store; the app parses it for the chat view. The exact format and file organization will be decided in `4-spec`.
 
 The user can also delete a saved conversation from the history view, after an explicit confirmation. Deleting removes that one saved file and leaves the other conversations untouched. This was requested during the build's hands-on review.
 

@@ -118,11 +118,14 @@ async def reply(turns, opening):
 
 TIME_COMMA = re.compile(r"\b(last|next|this)\s*,\s*(week|month|year|weekend|night|morning|afternoon|evening)\b",
                         re.IGNORECASE)
+GOODBYE_COMMA = re.compile(r"\bgood\s*,\s*bye\b", re.IGNORECASE)
 
 
 def clean_punctuation(text):
-    """Repair a comma the local model sometimes inserts inside time phrases."""
-    return TIME_COMMA.sub(r"\1 \2", text)
+    """Repair commas the local model sometimes inserts inside common phrases."""
+    text = TIME_COMMA.sub(r"\1 \2", text)
+    return GOODBYE_COMMA.sub(
+        lambda match: "Goodbye" if match.group(0)[0].isupper() else "goodbye", text)
 
 
 def validate_feedback(raw, user_texts):
@@ -138,13 +141,14 @@ def validate_feedback(raw, user_texts):
     for finding in feedback.findings:
         if not any(finding.quote in text for text in user_texts):
             raise ValueError("Feedback quoted words absent from the learner's turns.")
-        if finding.quote.strip() == finding.suggestion.strip():
+        suggestion = clean_punctuation(finding.suggestion)
+        if finding.quote.strip() == suggestion.strip():
             # A no-op is weak advice, not a fabrication. Keep the useful items.
             continue
-        if is_contraction_only_change(finding.quote, finding.suggestion):
+        if is_contraction_only_change(finding.quote, suggestion):
             continue
         grounded.append(finding.model_copy(update={
-            "suggestion": clean_punctuation(finding.suggestion),
+            "suggestion": suggestion,
             "explanation": clean_punctuation(finding.explanation),
         }))
     return feedback.model_copy(update={"findings": grounded})
@@ -202,7 +206,9 @@ async def compare_feedback(user_texts, rewrites):
                              retry_hint=("Previous output was invalid. Return complete JSON and quote ONLY "
                                          "exact supplied user text." if attempt else ""))
             feedback = validate_feedback(raw, user_texts)
-            return feedback.model_copy(update={"summary": clean_summary(feedback.summary)})
+            summary = (clean_summary(feedback.summary) if feedback.findings else
+                       "No clear wording issues were found in this conversation. Keep practicing!")
+            return feedback.model_copy(update={"summary": summary})
         except (ValidationError, ValueError, ModelError):
             if attempt:
                 raise ModelError("Local AI could not produce a complete, grounded report. Please retry.")

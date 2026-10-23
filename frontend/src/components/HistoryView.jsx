@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import Transcript from './Transcript.jsx';
 import styles from './HistoryView.module.css';
 
 export default function HistoryView({ entry, loading, error, onRetry, onStart, onBack, onDelete }) {
@@ -26,8 +27,8 @@ export default function HistoryView({ entry, loading, error, onRetry, onStart, o
     {error && <div className={styles.warning} role="alert"><p>{error}</p><button className="quiet" onClick={onRetry}>Retry opening</button></div>}
     {entry && <>
       <h1>{entry.title}</h1>
-      <p className={styles.note}>Your transcript and feedback, saved locally as Markdown.</p>
-      <pre className={styles.document}>{entry.markdown}</pre>
+      <p className={styles.note}>Your transcript and feedback, saved locally.</p>
+      <Transcript turns={entry.turns || []} report={entry.report_text} headerRight="Saved transcript" />
       <div className={styles.danger}>
         {confirming ? <>
           <p>Delete this conversation and its Markdown file? This cannot be undone.</p>

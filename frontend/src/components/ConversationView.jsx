@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import Robot from './Robot.jsx';
+import Transcript from './Transcript.jsx';
 import styles from './ConversationView.module.css';
 
 const labels = {
@@ -63,18 +64,9 @@ export default function ConversationView({ conversation: c, showText }) {
       <p>{c.warning}</p>
       {c.retryable && <button className="quiet" onClick={c.retry}>{c.retryLabel}</button>}
     </div>}
-    {c.turns.length > 0 && <div className={styles.transcript}>
-      <div className={styles.transcriptHeader}><span>THIS CONVERSATION</span><span>{showText ? 'Live transcript' : 'AI text hidden'}</span></div>
-      {c.turns.filter(turn => showText || turn.role === 'user').map(turn => <article key={turn.id} className={turn.role === 'user' ? styles.user : styles.assistant}>
-        <span className={styles.role}>{turn.role === 'user' ? 'You' : 'Your partner'}</span>
-        <p>{turn.text}</p>
-        {turn.interrupted && <small>Interrupted — generated reply shown; not all words were spoken.</small>}
-      </article>)}
-      {c.report && showText && <article className={styles.report}>
-        <h2>Your feedback</h2><p>{c.report}</p>
-      </article>}
+    {c.turns.length > 0 && <Transcript turns={c.turns} report={c.report} showText={showText}
+      headerRight="Live transcript" endRef={endRef}>
       {c.savedConversation && <p className={styles.hint}>Saved in <code>data/conversations/{c.savedConversation.filename}</code>. Open it from the sidebar anytime.</p>}
-      <div ref={endRef} className={styles.end} aria-hidden="true" />
-    </div>}
+    </Transcript>}
   </section>;
 }

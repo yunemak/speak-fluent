@@ -3,6 +3,7 @@ import fcntl
 import contextlib
 import json
 import os
+import re
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -21,8 +22,38 @@ class HistoryError(Exception):
         self.status = status
 
 
+TURN_HEADING = re.compile(r"^### (You|AI)\n\n", re.MULTILINE)
+INTERRUPTED_MARKER = "*Interrupted — generated reply shown; not all words were spoken.*"
+
+
 def utc(value):
     return value.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+
+
+def parse_transcript(markdown):
+    """Turn the saved readable Markdown back into the chat transcript."""
+    transcript_part, separator, report = markdown.rpartition("\n## Feedback Report\n")
+    if not separator:
+        raise ValueError("Missing feedback section; file left unchanged.")
+    _, separator, transcript = transcript_part.partition("\n## Transcript\n")
+    if not separator:
+        raise ValueError("Missing transcript section; file left unchanged.")
+    headings = list(TURN_HEADING.finditer(transcript))
+    if not headings:
+        raise ValueError("Transcript has no messages; file left unchanged.")
+    turns = []
+    for index, heading in enumerate(headings):
+        end = headings[index + 1].start() if index + 1 < len(headings) else len(transcript)
+        text = transcript[heading.end():end].strip("\n")
+        interrupted = text.endswith(INTERRUPTED_MARKER)
+        if interrupted:
+            text = text[:-len(INTERRUPTED_MARKER)].rstrip("\n")
+        turns.append({
+            "role": "user" if heading.group(1) == "You" else "assistant",
+            "text": text,
+            "interrupted": interrupted,
+        })
+    return turns, report.strip()
 
 
 def render(session):
@@ -154,7 +185,11 @@ class ConversationStore:
             if len(paths) != 1:
                 raise ValueError("Duplicate session ID")
             metadata, markdown = self._read(paths[0])
-            return {"id": metadata["id"], "title": metadata["title"], "markdown": markdown}
+            turns, report_text = parse_transcript(markdown)
+            for index, turn in enumerate(turns):
+                turn["id"] = f"{metadata['id']}:{index}"
+            return {"id": metadata["id"], "title": metadata["title"], "markdown": markdown,
+                    "turns": turns, "report_text": report_text}
         except (ValueError, OSError, UnicodeError) as error:
             raise HistoryError("Could not open this conversation. Check the file and its permissions; it was left unchanged.", "history_read_failed") from error
 

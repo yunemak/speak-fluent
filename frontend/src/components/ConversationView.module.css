@@ -8,14 +8,3 @@
 .hint { font-size: .72rem; color: var(--muted); margin-top: 1rem; line-height: 1.6; }
 .warning { text-align: left; background: #fff0de; border: 1px solid #e5c7a3; border-radius: 16px; padding: 1rem 1.2rem; margin-top: 1.5rem; font-size: .85rem; }
 .warning p { margin-top: 0; white-space: pre-wrap; line-height: 1.6; }
-.transcript { margin-top: 2rem; text-align: left; }
-.transcriptHeader { display: flex; justify-content: space-between; gap: .7rem; border-bottom: 1px solid var(--line); padding-bottom: .75rem; font-size: .65rem; color: var(--muted); letter-spacing: .04em; }
-.transcript article { padding: 1rem 1.1rem; border-radius: 15px; margin-top: .75rem; }
-.role { font-size: .65rem; font-weight: 650; color: var(--muted); }
-.transcript article p { font-size: .9rem; line-height: 1.8; margin: .3rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-.assistant { background: #eaf0ed; }
-.user { background: #f0eee8; margin-left: 2.5rem; }
-.transcript small { display: block; font-size: .7rem; color: var(--muted); margin-top: .6rem; }
-.report { background: #f4e6d6; }
-.report h2 { font-size: .9rem; font-weight: 600; margin: 0; }
-.end { height: 1px; scroll-margin-bottom: clamp(1.5rem, 4vh, 2.75rem); }

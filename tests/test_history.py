@@ -38,7 +38,14 @@ def test_readable_markdown_survives_new_store_and_preserves_interrupted_hidden_t
     assert "Interrupted — generated reply shown; not all words were spoken." in body
     assert "\n## Feedback Report\n" in body and data.report_text in body
     restarted = ConversationStore(tmp_path)
-    assert restarted.get(data.id)["markdown"] == body
+    entry = restarted.get(data.id)
+    assert entry["markdown"] == body
+    assert [turn["role"] for turn in entry["turns"]] == ["assistant", "user", "user"]
+    assert entry["turns"][0]["text"] == "How was your day? 😊"
+    assert entry["turns"][0]["interrupted"] is True
+    assert entry["turns"][1] == {"id": f"{data.id}:1", "role": "user",
+                                 "text": "Yesterday I go to the park.", "interrupted": False}
+    assert entry["report_text"] == data.report_text
     assert restarted.list()["sessions"][0]["id"] == str(data.id)
 
 
@@ -192,6 +199,8 @@ def test_api_reload_lists_reads_and_retries_saved_sessions(tmp_path, monkeypatch
         response = restarted.get(f"/api/conversations/{data.id}")
         assert response.status_code == 200
         assert data.report_text in response.json()["markdown"]
+        assert response.json()["report_text"] == data.report_text
+        assert [turn["role"] for turn in response.json()["turns"]] == ["assistant", "user", "user"]
         assert restarted.post("/api/conversations", json=data.model_dump(mode="json")).status_code == 200
         assert len(list(tmp_path.glob("*.md"))) == 2
         assert restarted.get(f"/api/conversations/{uuid4()}").status_code == 404

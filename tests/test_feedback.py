@@ -58,6 +58,27 @@ def test_a_comma_inside_a_time_expression_is_repaired():
     assert feedback.findings[0].explanation == "Use the simple past with 'last week'."
 
 
+def test_a_comma_inside_goodbye_is_repaired():
+    raw = json.dumps({"summary": "One clear fix.", "findings": [{
+        "category": "grammar", "quote": "I have to go. Goodbye.",
+        "suggestion": "I have to go now. Good,bye.",
+        "explanation": "'Good,bye' is the natural closing.",
+    }]})
+    feedback = llm.validate_feedback(raw, ["I have to go. Goodbye."])
+    assert feedback.findings[0].suggestion == "I have to go now. Goodbye."
+    assert feedback.findings[0].explanation == "'Goodbye' is the natural closing."
+
+
+def test_punctuation_cleanup_cannot_turn_a_no_op_into_a_finding():
+    raw = json.dumps({"summary": "One clear fix.", "findings": [{
+        "category": "grammar", "quote": "I have to go. Goodbye.",
+        "suggestion": "I have to go. Good,bye.",
+        "explanation": "The same closing.",
+    }]})
+    feedback = llm.validate_feedback(raw, ["I have to go. Goodbye."])
+    assert feedback.findings == []
+
+
 def test_a_contraction_suggestion_is_never_reported():
     raw = json.dumps({"summary": "All good.", "findings": [{
         "category": "grammar", "quote": "I am doing well", "suggestion": "I'm doing well",
