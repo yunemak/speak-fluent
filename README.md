@@ -4,7 +4,7 @@ An English conversation partner that runs on your Linux computer. Speak naturall
 interrupt when you need to, and say goodbye to hear useful wording feedback.
 
 **Build status:** the speech loop, saved history, offline run, and recovery paths are
-tested with real local models; the learner's final disconnected review is what is left.
+tested with real local models and the learner's final disconnected review is complete.
 Completed conversations are saved locally after feedback playback and can be reopened
 from the sidebar after restarting the app. Long conversations are reviewed in batches, so
 every spoken turn is covered by the feedback report.
@@ -104,7 +104,7 @@ the report; after playback, the transcript and report are saved and Start return
 The three local processes have separate jobs: Vite serves the interface, Python
 coordinates recognition and voice, and Ollama generates replies. Ctrl+C in each
 terminal stops that process. With setup complete, runtime uses only local assets;
-the full disconnected-network learner check is still pending.
+the full disconnected-network learner check passed.
 
 ## First hands-on check
 
@@ -216,5 +216,5 @@ or whether the conversation feels comfortable; try the hands-on check above.
 
 Capture the browser window, browser/system audio, and your microphone as separate
 audio inputs (for example in OBS). Make a short recording and listen back to
-confirm both voices are audible while using headphones. Final offline review and
-submission preparation come in later build steps.
+confirm both voices are audible while using headphones. The final offline review is
+complete; next is the demo recording and submission.

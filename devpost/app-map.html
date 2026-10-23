@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Speak Fluent — App Map</title>
+<style>
+  :root {
+    color-scheme: light;
+    --ink: #18332d;
+    --muted: #52665f;
+    --paper: #f6f1e7;
+    --card: #fffdf8;
+    --line: #d6cbb8;
+    --accent: #285b50;
+    --accent-soft: #e2eee9;
+    --warm: #a45b32;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font: 17px/1.55 ui-serif, Georgia, Cambria, "Times New Roman", serif;
+  }
+  main { max-width: 980px; margin: 0 auto; padding: 3rem 1.25rem 4.5rem; }
+  h1, h2, h3 { line-height: 1.15; }
+  h1 { margin: 0 0 .35rem; font-size: clamp(2rem, 5vw, 3.25rem); letter-spacing: -.035em; }
+  h2 { margin: 2.6rem 0 .8rem; font-size: 1.45rem; }
+  h3 { margin: 0 0 .3rem; font-size: 1.05rem; }
+  p { margin: .55rem 0; }
+  .lede { max-width: 70ch; color: var(--muted); font-size: 1.12rem; }
+  .meta { color: var(--muted); font-size: .88rem; }
+  .panel, .stop, .change, details {
+    border: 1px solid var(--line);
+    background: var(--card);
+    border-radius: 14px;
+  }
+  .panel { padding: 1.2rem 1.3rem; }
+  .flow { display: grid; gap: .55rem; margin: 1rem 0 0; padding: 0; list-style: none; }
+  .flow li {
+    display: grid;
+    grid-template-columns: minmax(8rem, .65fr) 1.6fr;
+    gap: .8rem;
+    align-items: baseline;
+    padding: .7rem .8rem;
+    border-left: 4px solid var(--accent);
+    background: var(--accent-soft);
+    border-radius: 8px;
+  }
+  .flow strong { color: var(--accent); }
+  .flow span { color: var(--muted); }
+  .flow .arrow { color: var(--warm); font-weight: 700; }
+  .stops { display: grid; gap: 1rem; margin-top: 1rem; }
+  .stop { padding: 1.1rem 1.2rem; }
+  .stop .path { display: inline-block; margin: .2rem 0 .45rem; }
+  code {
+    font: .88em/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #eef1ec;
+    border: 1px solid #dbe2d8;
+    border-radius: 5px;
+    padding: .08rem .33rem;
+    overflow-wrap: anywhere;
+  }
+  .stop p { margin: .45rem 0 0; }
+  details { margin-top: .7rem; padding: .7rem .9rem; }
+  summary { cursor: pointer; color: var(--accent); font-weight: 700; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: .9rem; margin-top: 1rem; }
+  .change { padding: 1rem; }
+  .change p { color: var(--muted); font-size: .96rem; }
+  .practice { border-left: 5px solid var(--warm); }
+  .run { white-space: pre-wrap; font: .84rem/1.6 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; background: #182923; color: #e9f2ed; border-radius: 10px; padding: 1rem; overflow-x: auto; }
+  a { color: var(--accent); }
+  a:focus-visible, summary:focus-visible { outline: 3px solid var(--warm); outline-offset: 3px; }
+  @media (max-width: 620px) {
+    body { font-size: 16px; }
+    main { padding-top: 2rem; }
+    .flow li { grid-template-columns: 1fr; gap: .15rem; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="meta">Speak Fluent · take-home app map · source snapshot <code>e2f754f</code></p>
+  <h1>Speak Fluent</h1>
+  <p class="lede">A private English conversation partner that runs on your own machine: your browser hears you, a local model replies, a local voice speaks, and the finished conversation is saved as readable Markdown.</p>
+
+  <h2>The pieces</h2>
+  <div class="panel">
+    <p><strong>Browser:</strong> microphone capture, Silero voice-activity detection, playback, transcript, report, and history sidebar. <strong>Python service:</strong> Whisper recognition, Ollama requests, Kokoro speech, and Markdown storage. <strong>Ollama:</strong> Qwen3 4B for conversation and Qwen3 8B for feedback.</p>
+    <ol class="flow">
+      <li><strong>You speak</strong><span>Browser audio + Silero VAD → <code>frontend/src/lib/audio.js</code> and <code>conversation.js</code></span></li>
+      <li><strong>Words</strong><span><code>POST /api/transcribe</code> → faster-whisper in <code>backend/speech.py</code></span></li>
+      <li><strong>Reply</strong><span><code>POST /api/reply</code> → <code>backend/llm.py</code> → local Ollama Qwen3 4B</span></li>
+      <li><strong>Voice</strong><span><code>POST /api/speech</code> → <code>backend/voice.py</code> → Kokoro, 9 kHz low-pass, WAV</span></li>
+      <li><strong>Feedback</strong><span>“Goodbye” → <code>POST /api/report</code> → Qwen3 8B → <code>backend/history.py</code> Markdown</span></li>
+    </ol>
+  </div>
+
+  <h2>One action, end to end: the AI speaks</h2>
+  <p>This is the route to follow when the voice, its delay, or its clarity needs work. It is the exact path used to remove the 9–12 kHz static.</p>
+  <div class="stops">
+    <article class="stop">
+      <h3>1. The browser asks for audio</h3>
+      <p class="path"><code>frontend/src/lib/conversation.js</code> → <code>Conversation.respond</code> → <code>this.api.speech(...)</code></p>
+      <p>The conversation controller receives the reply text, splits long feedback into chunks, and asks <code>frontend/src/lib/api.js</code> for <code>/api/speech</code>. While one chunk plays, it can request the next so feedback does not pause.</p>
+    </article>
+    <article class="stop">
+      <h3>2. Python turns text into WAV</h3>
+      <p class="path"><code>backend/app.py</code> → <code>@app.post("/api/speech")</code> → <code>backend/speech.py</code> → <code>Speech.synthesize</code></p>
+      <p>The endpoint validates the request and runs synthesis as CPU-bound work under <code>voice_lock</code>. That serialization keeps two audio requests from loading the voice engine at the same time.</p>
+    </article>
+    <article class="stop">
+      <h3>3. Kokoro speaks, then mastering cleans it</h3>
+      <p class="path"><code>backend/voice.py</code> → <code>Voice.synthesize</code> → <code>Voice._kokoro</code> → <code>Voice._master</code> → <code>Voice._low_pass</code></p>
+      <p>Kokoro creates 24 kHz float samples with the selected voice (<code>af_heart</code> by default). The 127-tap, 9 kHz linear-phase low-pass removes the hot 9–12 kHz band heard as static. DC removal, 0.9 peak normalization, and 8 ms fades follow. <code>wav_bytes</code> turns the result into PCM16 WAV; the browser decodes and plays it.</p>
+      <details>
+        <summary>Useful search anchors</summary>
+        <p><code>grep -n "def _low_pass" backend/voice.py</code> · <code>grep -n "@app.post(\"/api/speech\")" backend/app.py</code> · <code>grep -n "this.api.speech" frontend/src/lib/conversation.js</code></p>
+      </details>
+    </article>
+  </div>
+
+  <h2>To change this, start here</h2>
+  <div class="grid">
+    <section class="change">
+      <h3>Voice character</h3>
+      <p>Set <code>SPEAK_FLUENT_VOICE</code> or change <code>VOICE_NAME</code> in <code>backend/config.py</code>. Available voices and setup notes are in <code>models/README.md</code>; <code>scripts/compare_voices.py</code> renders local samples.</p>
+    </section>
+    <section class="change">
+      <h3>Voice brightness or hiss</h3>
+      <p>Adjust the cutoff or tap count in <code>Voice._low_pass</code> in <code>backend/voice.py</code>. Re-run the real <code>/api/speech</code> check and listen before keeping a change.</p>
+    </section>
+    <section class="change">
+      <h3>Conversation style</h3>
+      <p>Edit the conversation and opening prompts in <code>backend/prompts.py</code>; the request flow is <code>llm.reply</code> in <code>backend/llm.py</code>.</p>
+    </section>
+    <section class="change">
+      <h3>Feedback wording</h3>
+      <p>Start in <code>backend/prompts.py</code> for the review instructions, then <code>backend/llm.py</code> for <code>report</code>, grounding in <code>validate_feedback</code>, and <code>format_feedback</code>.</p>
+    </section>
+    <section class="change">
+      <h3>Saved-conversation UI</h3>
+      <p><code>frontend/src/components/HistoryView.jsx</code> renders the saved view; <code>frontend/src/components/Transcript.jsx</code> is shared by live and saved conversations.</p>
+    </section>
+    <section class="change">
+      <h3>Start screen and status</h3>
+      <p>Labels, the tagline, and the start button live in <code>frontend/src/components/ConversationView.jsx</code>; the shell and history wiring live in <code>frontend/src/App.jsx</code>.</p>
+    </section>
+  </div>
+
+  <h2>A practice to reuse</h2>
+  <div class="panel practice">
+    <p><strong>The project moment:</strong> the AI voice had a static hiss. Instead of guessing at the browser or changing the model, the exact <code>/api/speech</code> WAV was measured. Full-precision and int8 Kokoro were compared; Chromium's 24 → 48 kHz decode was checked for imaging; then the spectrum showed an unusually hot 9–12 kHz band in <code>af_heart</code>. One mastering stage changed, and the same measurements plus a Whisper transcription and the browser journey confirmed the result.</p>
+    <p><strong>Reusable practice:</strong> when output is wrong, capture the real artifact and measure each stage before changing a layer. Keep a before/after check that exercises the same thing the user will experience. That is faster and safer than changing several plausible causes at once.</p>
+  </div>
+
+  <h2>Run it again</h2>
+  <pre class="run"># 1. Ollama (from the project root)
+OLLAMA_NO_CLOUD=1 OLLAMA_HOST=127.0.0.1:11434 ollama serve
+
+# 2. Python service
+.venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
+
+# 3. Interface
+npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort</pre>
+  <p>Open <strong>http://127.0.0.1:5173</strong>. Full setup and troubleshooting are in <code>README.md</code>; saved conversations are under <code>data/conversations/</code>.</p>
+  <p class="meta">This map is a snapshot of the source at commit <code>e2f754f</code>; paths and behavior can drift after later edits. It is a standalone offline file with no scripts, network calls, analytics, or private learner data.</p>
+</main>
+</body>
+</html>

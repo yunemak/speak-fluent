@@ -29,7 +29,7 @@ Build mode: learn. Explain each verified slice, pause for the learner to try it,
   Learner check: Finish a short conversation, open it from the sidebar, and read its transcript and separate report. Inspect the Markdown file named in the README, restart the app, and reopen the same entry. Start and finish another session and confirm both remain available.
   Commit: `Save completed conversations as readable local history`
 
-- [ ] **3. Complete the offline journey and recover from interruptions or failures**
+- [x] **3. Complete the offline journey and recover from interruptions or failures**
   Becomes usable: The complete app runs after disconnecting external networking, explains recoverable failures, retries without fake completion or duplicate history, and reviews all user turns when a conversation exceeds a single feedback input budget.
   Why now: The real speech loop and durable history now exist, so we can verify their combined failure paths and offline behavior rather than testing disconnected pieces. This closes the remaining spec requirements before final hands-on review.
   PRD ref: `prd.md > Features and Behavior`, `prd.md > States and Boundaries`, `prd.md > What We're Building`, `prd.md > Open Questions`.
@@ -42,7 +42,7 @@ Build mode: learn. Explain each verified slice, pause for the learner to try it,
 ## Hands-on Checkpoints
 
 - [x] Early usable behavior explored — after slice 1, actual microphone conversation, interruption, and spoken correction tried; emoji, noise-interruption, and closing feedback resolved through learner retries.
-- [ ] Final kick-the-tires exploration and feedback completed — after slice 3 verification, perform its learner check and the spec's final live verification. This same exploration supplies Final Review feedback; do not ask for a duplicate pass unless fixes need retrying.
+- [x] Final kick-the-tires exploration and feedback completed — after slice 3 verification, perform its learner check and the spec's final live verification. This same exploration supplies Final Review feedback; do not ask for a duplicate pass unless fixes need retrying. Confirmed after the final disconnected pass and voice retest (“Works great”).
 
 Learn mode also pauses for slice 2's learner check. Fast mode carries its history checks into the final hands-on session.
 
@@ -84,7 +84,7 @@ The learner confirmed saving/reopening works as expected and requested that the 
 
 ### Slice 3 verification and resume state
 
-Implementation of the final slice is complete and mechanically verified, and is checkpointed in `071a392`. The slice stays unchecked until the learner's own disconnected-network run and the final hands-on review are done, so the box reflects learner-confirmed completion rather than only the agent's checks.
+Implementation of the final slice is complete and mechanically verified, and is checkpointed in `071a392`. The learner then completed the final disconnected run and sticky-sidebar check, so the slice and final review are now checked.
 
 - Long conversations: feedback now reviews every user turn in bounded batches (`llm.feedback_batches`), combining grounded findings from each batch and stating how many turns were reviewed. Reply context is bounded by UTF-8 bytes, not characters, and an oversized newest turn keeps its final words. A failure in any batch fails the whole report instead of returning a partial one.
 - Real-model verification of batching: an 8,957-character two-turn transcript produced corrections for both the first sentence (“Yesterday I go to the park.”) and the last (“She have two cats.”), all quotes grounded, in 7.5 s across 5 batches. The first attempt with larger batches missed the early error, so report batches were reduced to 2,200 bytes and the prompt was rewritten to require a sentence-by-sentence review with a single non-repeating example.
@@ -94,7 +94,7 @@ Implementation of the final slice is complete and mechanically verified, and is 
 - Mechanical verification: 59 Python tests and 18 JavaScript tests passed, plus the frontend production build. New coverage: batched all-turn review, Unicode-safe splitting, no partial report on batch failure, byte-bounded reply context, lock ownership under cancellation, queued work never running after cancel, request-size limits, invalid audio type, validation not echoing private text, and an unavailable Ollama service.
 - Browser journeys with real local models all passed: the full speech loop, offline evidence (no external page requests and no external service sockets during a complete journey), unavailable Ollama (actionable warning, Retry, no fake session), unwritable history folder (readiness fails visibly), and the history journey (save after playback, Retry save, restart persistence, malformed-file warning).
 - Voice comparison support: `scripts/download_voice.py` and `scripts/compare_voices.py` download extra local Piper voices and render the same sentence for a listening test; `SPEAK_FLUENT_VOICE` selects the active voice at startup. This answers the learner's request for a more human-like voice without adding an in-app picker. `en_US-amy-medium` and `en_US-bryce-medium` are downloaded locally as candidates; the learner chooses.
-- Learner action pending: complete the spec's final live verification with external networking disconnected, compare the voice samples, and explore the app freely. Report anything broken, confusing, or worth changing.
+- Final learner pass completed: the learner reran the app with external networking disconnected, checked the sticky sidebar, and confirmed the result (“Works great”). The static-free voice retest, real Qwen3 8B feedback check, and automated offline browser journey also pass.
 
 ### Final review changes (learner feedback after slice 3)
 
@@ -153,7 +153,7 @@ Implementation of the final slice is complete and mechanically verified, and is 
 
 ## Final Review
 
-- [ ] Final review complete — feedback resolved and learner confirms ready to ship
+- [x] Final review complete — feedback resolved and learner confirms ready to ship. Confirmed after the static-free voice retest, final disconnected pass, and sticky-sidebar check (“Works great”).
 
 - [x] Learner retry: Kokoro voice sounds acceptable for practice (implemented in `393a99f`; the learner described it as “really human-like” and loved it).
 - [x] Learner retry: delete a disposable saved conversation and confirm other entries remain. Confirmed.
@@ -162,21 +162,21 @@ Implementation of the final slice is complete and mechanically verified, and is 
 - [x] Learner retry: cough during AI speech does not permanently stop the reply, and “I’m doing well” becomes a turn at normal and quiet volume. Confirmed.
 - [x] Learner retry: the tagline only appears on the start screen; a similarly long turn receives several specific findings. Confirmed in the latest round; the long networking turn now returns three grounded findings.
 - [x] Learner retry: the AI voice is clear of static after the 9 kHz low-pass filter. Confirmed (“It works good”).
-- [ ] Learner runs the full journey with external networking disconnected and checks the sticky sidebar while scrolling. Disconnected operation confirmed; sticky-sidebar visual retry still open.
+- [x] Learner runs the full journey with external networking disconnected and checks the sticky sidebar while scrolling. Confirmed (“Works great”); the automated offline journey also passes with no external page requests or service sockets, and the sidebar holds its viewport position at desktop and narrow widths.
 
-Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, the current voice, the tagline placement, the long-turn feedback, and the static-free voice after the 9 kHz filter. Auto-scroll was added at the learner's request and browser-verified. The latest round added clear leave-taking intent matching, structured history parsing, and the shared chat-bubble transcript. The automated offline journey and a real Qwen3 8B feedback check also pass. Remaining: the learner's sticky-sidebar visual check and final disconnected pass, then the app map/learning wrap-up and Devpost submission.
+Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, the current voice, the tagline placement, the long-turn feedback, the static-free voice after the 9 kHz filter, and the final sticky-sidebar/disconnected pass. Auto-scroll was added at the learner's request and browser-verified. The latest round added clear leave-taking intent matching, structured history parsing, and the shared chat-bubble transcript. The automated offline journey and a real Qwen3 8B feedback check also pass. Remaining: the brief learning wrap-up, then Devpost submission.
 
 ## Code Tour and App Map
 
 - [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
 - [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
-- [ ] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse
+- [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse. Checked in Chromium at 1280×900: 3 route stops, 1 optional reveal, no scripts, no console errors, and no horizontal overflow. The map uses the voice path as its worked example and names the 9 kHz filter.
 
-Activity and evidence: Pending. Connect the working local speech loop to how recognition, reply generation, and synthesis cooperate; count useful practice already completed during the build.
-Route and stops: Pending actual implementation; choose 2–3 real code locations for one spoken interaction.
+Activity and evidence: App map generated at `devpost/app-map.html`; the guided route follows one spoken reply through the browser controller, `/api/speech`, and Kokoro mastering. Voice-path practice is available but not yet toured with the learner.
+Route and stops: `frontend/src/lib/conversation.js` → `Conversation.respond` / `this.api.speech`; `backend/app.py` → `@app.post("/api/speech")`; `backend/voice.py` → `Voice.synthesize` → `_kokoro` → `_master` → `_low_pass`.
 Edit outcome: Not yet offered.
 Reflection: Not yet offered; any personal answer belongs only in the ignored learner profile.
-Activity mode: Pending; default to live app and editor after final revisions.
+Activity mode: Guided route prepared for a learner new to local AI; offer the focused recap/map if they decline the walkthrough.
 
 ## Revisions
 
