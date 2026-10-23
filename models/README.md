@@ -36,7 +36,8 @@ Whisper files go into `models/whisper-small.en/`. Piper `.onnx`, `.onnx.json`, a
 for its source data; the card does not label the voice as MIT or GPL. Each additional
 voice downloaded with `scripts/download_voice.py` brings its own model card and terms.
 Preserve those separate terms when considering model distribution. This repository does
-not bundle model weights or establish a license for the learner's own application.
+not bundle model weights. Speak Fluent's original application code is licensed
+under [GPL-3.0-only](../LICENSE); that does not change these third-party terms.
 
 Kokoro's voice pack contains many named voices (`af_heart`, `af_nicole`, `am_michael`,
 `bf_emma`, and others). Each one is a trained character with its own review history;

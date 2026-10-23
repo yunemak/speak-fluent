@@ -218,3 +218,15 @@ Capture the browser window, browser/system audio, and your microphone as separat
 audio inputs (for example in OBS). Make a short recording and listen back to
 confirm both voices are audible while using headphones. The final offline review is
 complete; next is the demo recording and submission.
+
+## License
+
+Speak Fluent's original application code is licensed under the
+[GNU General Public License, version 3 only](LICENSE) (`GPL-3.0-only`).
+You may redistribute and modify it under those terms. It is provided without
+any warranty, including implied warranties of merchantability or fitness for a
+particular purpose. See [LICENSE](LICENSE) for the full terms.
+
+Third-party dependencies, learning/agent tooling, and model weights retain their
+respective licenses; this license does not relicense them. Model weights are not
+included in this repository. See [model sources and licenses](models/README.md).

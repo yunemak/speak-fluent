@@ -180,6 +180,8 @@ Activity mode: Guided route completed by review; app map at `devpost/app-map.htm
 
 ## Shipping
 
+- [x] Learner selected GPL-3.0 for original application code. Added the complete version 3 license, `GPL-3.0-only` package metadata, and README licensing information; third-party terms remain separate.
+
 - [x] Public repository published through `dc23d52`: https://github.com/yunemak/speak-fluent. Public access checked without authentication; publication audit found no credentials, tracked learner profile, personal history files, or model weights.
 - [x] Demo uploaded: https://www.youtube.com/watch?v=SwbLSt-dedU. YouTube metadata confirms public access and a duration of 2:39.
 - [ ] Confirm the uploaded video shows the working conversation and feedback with both voices audible. Metadata verification does not establish recording quality.

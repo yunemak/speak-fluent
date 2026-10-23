@@ -273,7 +273,7 @@ Runtime dependencies are local libraries and Ollama, not cloud APIs; there are n
 
 Use explicit local paths for faster-whisper and Piper. Set Hugging Face offline mode during runtime, and disable Ollama cloud features using its documented local configuration if supported by the installed version. Bundle VAD/ONNX model, worklet, WASM, and `.mjs` assets: the VAD integration otherwise defaults to CDN URLs. All runtime UI assets, including the robot and fonts, must resolve locally.
 
-Piper is GPL-3.0; its voice models have separate model cards. Record model/software licenses and download sources in `models/README.md` when selecting tested versions. This spec does not choose a license for the learner's app or bundle third-party model weights into its public repository.
+Piper is GPL-3.0; its voice models have separate model cards. Record model/software licenses and download sources in `models/README.md` when selecting tested versions. During shipping, the learner selected GPL-3.0 for the original application code, recorded as `GPL-3.0-only` in `LICENSE` and package metadata. Third-party components retain their own terms, and model weights are not bundled into the public repository.
 
 ## File Structure
 
