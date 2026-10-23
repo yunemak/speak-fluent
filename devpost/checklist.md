@@ -178,6 +178,17 @@ Edit outcome: Optional label edit offered; learner chose to move to shipping wit
 Reflection: Optional question not answered; learner moved directly to shipping. No personal reflection was recorded.
 Activity mode: Guided route completed by review; app map at `devpost/app-map.html`.
 
+## Shipping
+
+- [x] Public repository published through `dc23d52`: https://github.com/yunemak/speak-fluent. Public access checked without authentication; publication audit found no credentials, tracked learner profile, personal history files, or model weights.
+- [x] Demo uploaded: https://www.youtube.com/watch?v=SwbLSt-dedU. YouTube metadata confirms public access and a duration of 2:39.
+- [ ] Confirm the uploaded video shows the working conversation and feedback with both voices audible. Metadata verification does not establish recording quality.
+- [ ] Learner completes project name, short description, and other required Devpost fields in their own words, including the skill-pack explanation and applicable eligibility confirmation.
+- [ ] Learner completes the exit survey.
+- [ ] Devpost submission confirmed and entry URL recorded.
+
+Shipping resume: repository and demo links are ready. The authenticated submission form has not been inspected; ask the learner to share its current prompts or a screenshot. Keep submission and survey answers learner-written. The earlier remaining-work summary above is superseded by this section.
+
 ## Revisions
 
 - Remove the remaining AI-voice static by low-pass filtering Kokoro's hot 9–12 kHz band at 9 kHz before mastering, while preserving the 4–9 kHz speech band and the learner's preferred `af_heart` voice. Real audio and browser checks confirmed the filter and the full farewell/history journey; the learner then confirmed the voice sounds good with no static.

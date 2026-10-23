@@ -111,6 +111,11 @@ Open **http://127.0.0.1:5173**, allow the microphone, and press Start. For the d
 
 Submission requires a short demo video and public GitHub repository. Record browser audio and microphone so both sides can be heard even while using headphones. The README must include setup, exact tested versions, startup, model-download requirements, saved-file location, and recording instructions. Model weights and personal conversations stay out of Git.
 
+Shipping links:
+- Public repository: https://github.com/yunemak/speak-fluent — published through `dc23d52`; README and planning artifacts verified accessible without authentication.
+- Demo video: https://www.youtube.com/watch?v=SwbLSt-dedU — “Speak Fluent App - Devpost Build with AI: Basics,” public, 159 seconds. Accessibility and duration verified from YouTube metadata; video content and audio have not been reviewed by the agent.
+- Devpost entry: pending learner-written fields, exit survey, and submission confirmation.
+
 ## Look and Feel
 
 Implements `prd.md > Screens and Layout`, `prd.md > Look and Feel`, and `prd.md > Speech Text and Speaking Animation`.
