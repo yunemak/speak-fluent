@@ -31,6 +31,14 @@ class Voice:
         if KOKORO_MODEL.is_file() and KOKORO_VOICES.is_file():
             from kokoro_onnx import Kokoro
             self.kokoro = Kokoro(str(KOKORO_MODEL), str(KOKORO_VOICES))
+            # Validate the name now: a typo in SPEAK_FLUENT_VOICE would
+            # otherwise only fail the first spoken reply mid-practice.
+            names = self.kokoro.get_voices()
+            if self.voice not in names:
+                raise ValueError(
+                    f"Voice {self.voice!r} is not in the local voice pack. "
+                    f"Unset SPEAK_FLUENT_VOICE for the default or pick one from "
+                    f"scripts/compare_voices.py (for example af_heart, af_nicole, am_michael).")
             self.engine = "kokoro"
             return
         from piper import PiperVoice

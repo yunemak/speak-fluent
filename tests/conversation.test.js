@@ -328,27 +328,31 @@ test('blocked playback retries cached audio and enters the transcript only on ac
 });
 
 test('long report keeps every character and retries only its failed audio chunk before saving', async () => {
-  const report = 'A useful suggestion.\n\n'.repeat(240);
+  const report = Array.from({ length: 120 }, (_, index) =>
+    `Suggestion ${index}: use the past tense and keep the rest of your sentence unchanged.`).join('\n\n');
   const chunks = speechChunks(report);
   assert.equal(chunks.join(''), report);
-  assert.ok(chunks.every(chunk => chunk.length <= 3000));
+  assert.ok(chunks.every(chunk => chunk.length <= 900));
   const { c, calls, audio } = harness({ report: async body => ({ request_id: body.request_id, report_text: report }) });
   const start = c.start();
   await setImmediate(); audio.end(); await start;
-  c.speechStart(); c.speechEnd('Goodbye.');
-  await setImmediate();
   const originalSpeech = c.api.speech;
-  let failed = false;
+  let failures = 0;
+  // Fail both the look-ahead fetch and the immediate retry of one chunk.
   c.api.speech = async body => {
-    if (!failed) { failed = true; throw new Error('Voice failed midway'); }
+    if (body.text === chunks[2] && failures < 2) { failures += 1; throw new Error('Voice failed midway'); }
     return originalSpeech(body);
   };
+  c.speechStart(); c.speechEnd('Goodbye.');
+  await setImmediate();
+  audio.end(); await setImmediate();
+  assert.equal(c.state.phase, 'feedback-speaking');
   audio.end(); await setImmediate();
   assert.equal(c.state.phase, 'error');
   assert.equal(calls.saves.length, 0);
   const retry = c.retry();
   await setImmediate();
-  for (let index = 1; index < chunks.length; index++) {
+  for (let index = 2; index < chunks.length; index++) {
     assert.equal(c.state.phase, 'feedback-speaking');
     audio.end(); await setImmediate();
   }
@@ -356,6 +360,34 @@ test('long report keeps every character and retries only its failed audio chunk 
   assert.deepEqual(calls.plays.slice(1), chunks);
   assert.equal(calls.saves.length, 1);
   assert.equal(calls.saves[0].report_text, report);
+});
+
+test('the next report chunk is synthesised while the current one plays', async () => {
+  const paragraphs = ['A', 'B', 'C'].map(letter => `${letter}: ` + 'a useful sentence. '.repeat(38));
+  const report = paragraphs.join('\n\n');
+  const chunks = speechChunks(report);
+  assert.equal(chunks.length, 3);
+  const spoken = [];
+  const { c, audio } = harness({
+    report: async body => ({ request_id: body.request_id, report_text: report }),
+    speech: async body => { spoken.push(body.text); return body.text; },
+  });
+  const start = c.start();
+  await setImmediate(); audio.end(); await start;
+  spoken.length = 0;
+  c.speechStart(); c.speechEnd('Goodbye.');
+  await setImmediate();
+  assert.equal(c.state.phase, 'feedback-speaking');
+  // The chunk being heard plus the one queued behind it.
+  assert.equal(spoken.length, 2);
+  assert.equal(spoken[0], chunks[0]);
+  assert.equal(spoken[1], chunks[1]);
+  audio.end(); await setImmediate();
+  assert.equal(spoken.length, 3);
+  assert.equal(spoken[2], chunks[2]);
+  audio.end(); await setImmediate();
+  audio.end(); await setImmediate();
+  assert.equal(c.state.phase, 'complete');
 });
 
 test('microphone recovery preserves prior turns and starts listening again', async () => {

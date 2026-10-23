@@ -138,8 +138,17 @@ async def health(request: Request):
         kokoro_ready, piper_ready = speech.voice.available()
         if not (kokoro_ready or piper_ready):
             raise FileNotFoundError
-        await cpu(request, voice_lock, speech.voice.load)
+        try:
+            await cpu(request, voice_lock, speech.voice.load)
+        except ValueError as error:
+            # Configuration problem: name the cause instead of telling the
+            # learner to re-download files they already have.
+            raise ValueError(str(error)) from error
         checks["tts"] = True
+    except FileNotFoundError:
+        problems.append("Could not load a local voice. Run .venv/bin/python scripts/download_models.py and retry.")
+    except ValueError as error:
+        problems.append(str(error))
     except Exception:
         problems.append("Could not load a local voice. Run .venv/bin/python scripts/download_models.py and retry.")
     try:

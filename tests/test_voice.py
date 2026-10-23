@@ -31,6 +31,17 @@ def test_emoji_only_text_is_refused_before_synthesis():
         voice.synthesize("😊")
 
 
+def test_an_unknown_voice_name_fails_at_startup_with_a_helpful_message():
+    voice = Voice()
+    voice.voice = "af_not_a_real_voice"
+    with pytest.raises(ValueError) as error:
+        voice.load()
+    message = str(error.value)
+    assert "af_not_a_real_voice" in message
+    assert "SPEAK_FLUENT_VOICE" in message
+    assert "compare_voices.py" in message
+
+
 def test_wav_bytes_helper_writes_pcm16():
     import numpy as np
     samples = np.zeros(1000, dtype="<i2")

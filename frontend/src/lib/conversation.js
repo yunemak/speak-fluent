@@ -4,7 +4,9 @@ export const initialState = () => ({
   savedConversation: null,
 });
 
-export function speechChunks(text, limit = 3000) {
+// Reports are spoken paragraph by paragraph. A small chunk keeps the wait for
+// first audio short; the next chunk is synthesised while the current one plays.
+export function speechChunks(text, limit = 900) {
   const chunks = [];
   while (text.length > limit) {
     let end = text.lastIndexOf('\n\n', limit);
@@ -202,9 +204,20 @@ export class Conversation {
       delivery.chunks ??= report ? speechChunks(delivery.text) : [delivery.text];
       while (delivery.index < delivery.chunks.length) {
         if (!delivery.audio) {
-          delivery.audio = await this.api.speech({ request_id, text: delivery.chunks[delivery.index] }, controller.signal);
+          const ahead = delivery.next;
+          delivery.next = null;
+          delivery.audio = ahead ? await ahead : null;
+          if (!delivery.audio) {
+            delivery.audio = await this.api.speech({ request_id, text: delivery.chunks[delivery.index] }, controller.signal);
+          }
         }
         if (!current()) return;
+        const following = delivery.chunks[delivery.index + 1];
+        if (following && !delivery.next) {
+          // Synthesise the next chunk during playback so speech stays continuous.
+          delivery.next = this.api.speech({ request_id, text: following }, controller.signal)
+            .catch(() => null);
+        }
         const result = await this.audio.play(delivery.audio, current, () => {
           if (!current()) return;
           if (!report) {
@@ -221,7 +234,9 @@ export class Conversation {
         if (result !== 'ended') return;
         delivery.index += 1;
         delivery.audio = null;
-        if (report && delivery.index < delivery.chunks.length) this.update({ phase: 'preparing-feedback' });
+        if (report && delivery.index < delivery.chunks.length && !delivery.next) {
+          this.update({ phase: 'preparing-feedback' });
+        }
       }
       if (report) {
         await this.audio.close();
