@@ -1,9 +1,8 @@
 .app { min-height: 100dvh; display: grid; grid-template-columns: max(150px, 10%) 1fr; }
-.main { padding: 2.1rem clamp(1.2rem, 5vw, 6rem) 1.2rem; display: flex; flex-direction: column; min-width: 0; }
+.main { padding: 2.1rem clamp(1.2rem, 5vw, 6rem) 2rem; display: flex; flex-direction: column; min-width: 0; }
 .header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
 .header strong { font-size: 1rem; letter-spacing: -.02em; display: block; }
 .header span { font-size: .75rem; color: var(--muted); display: block; margin-top: .3rem; }
-.footer { margin-top: auto; padding-top: 2rem; color: var(--muted); text-align: center; font-size: .73rem; }
 @media (max-width: 640px) {
   .app { grid-template-columns: 1fr; }
   .main { padding-top: 1.2rem; }

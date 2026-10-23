@@ -56,13 +56,16 @@ In another terminal:
 
 ```bash
 ollama pull qwen3:4b-q4_K_M
+ollama pull qwen3:8b
 .venv/bin/python scripts/download_models.py
 ```
 
-Use the **explicit model tag above**. The shorter `qwen3:4b` alias now points at a
+Use the **explicit 4B model tag above**. The shorter `qwen3:4b` alias now points at a
 thinking-only model that did not respect `think: false` in the integration check.
-The download script pins tested Whisper/Piper revisions, fetches the Kokoro model and
-voice pack, can be rerun, and records sources in `models/sources.json`. npm's postinstall copies the browser VAD model,
+The 4B model keeps spoken conversation fast; the 8B model runs only the two feedback
+passes after practice ends, where its stronger collocation judgment matters.
+The download script pins tested Whisper/Piper revisions, fetches the full-precision
+Kokoro model and voice pack, can be rerun, and records sources in `models/sources.json`. npm's postinstall copies the browser VAD model,
 worklet, WASM and JavaScript modules into `frontend/public/vendor/` for local use.
 See [model sources and licenses](models/README.md).
 
@@ -142,8 +145,11 @@ while other entries remain available; the app leaves those files unchanged.
 ## Comparing voices
 
 The default voice is Kokoro's `af_heart`, a local neural voice that sounds far more
-natural than the older Piper voices. Every local voice can be rendered for a
-listening comparison:
+natural than the older Piper voices. Setup downloads the full-precision Kokoro model;
+an existing int8 model still works as a fallback. Kokoro output is peak-normalized
+to 0.9 with short fades at the edges, so the voice is clear without turning the
+speaker up into the playback chain's noise floor. Every local voice can be rendered
+for a listening comparison:
 
 ```bash
 .venv/bin/python scripts/compare_voices.py     # writes models/voice-samples/*.wav

@@ -11,7 +11,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, Response
 
 from . import llm
-from .config import CHAT_MODEL, HISTORY_PATH, OLLAMA_URL, ROOT, WHISPER_PATH
+from .config import CHAT_MODEL, FEEDBACK_MODEL, HISTORY_PATH, OLLAMA_URL, ROOT, WHISPER_PATH
 from .farewell import is_farewell
 from .schemas import CompletedSession, ReplyRequest, ReportRequest, SpeechRequest
 from .speech import Speech
@@ -112,16 +112,20 @@ async def cpu(request, lock, function, *args):
 
 @app.get("/api/health")
 async def health(request: Request):
-    checks = {"ollama": False, "chat_model": False, "stt": False, "tts": False, "history_writable": False, "vad_assets": False}
+    checks = {"ollama": False, "chat_model": False, "feedback_model": False, "stt": False, "tts": False, "history_writable": False, "vad_assets": False}
     problems = []
     try:
         async with httpx.AsyncClient(timeout=3, trust_env=False) as client:
             result = await client.get(f"{OLLAMA_URL}/api/tags")
             result.raise_for_status()
             checks["ollama"] = True
-            checks["chat_model"] = any(model["name"] == CHAT_MODEL for model in result.json()["models"])
+            names = {model["name"] for model in result.json()["models"]}
+            checks["chat_model"] = CHAT_MODEL in names
+            checks["feedback_model"] = FEEDBACK_MODEL in names
         if not checks["chat_model"]:
             problems.append(f"Download the conversation model: ollama pull {CHAT_MODEL}")
+        if not checks["feedback_model"]:
+            problems.append(f"Download the feedback model: ollama pull {FEEDBACK_MODEL}")
     except (httpx.HTTPError, ValueError, KeyError):
         problems.append("Start Ollama: OLLAMA_NO_CLOUD=1 ollama serve")
     for key, path, loader, lock in [

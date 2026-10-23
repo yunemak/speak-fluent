@@ -42,11 +42,20 @@ def test_a_finding_without_a_real_change_is_dropped_not_fatal():
         {"category": "grammar", "quote": "Yesterday I go to the park.", "suggestion": "Yesterday I went to the park.",
          "explanation": "Use the past tense."},
     ]})
-    with pytest.raises(ValueError):
-        llm.validate_feedback(raw, ["I like swimming.", "Yesterday I go to the park."])
-    relaxed = llm.validate_feedback(raw, ["I like swimming.", "Yesterday I go to the park."], strict=False)
-    assert len(relaxed.findings) == 1
-    assert relaxed.findings[0].suggestion == "Yesterday I went to the park."
+    feedback = llm.validate_feedback(raw, ["I like swimming.", "Yesterday I go to the park."])
+    assert len(feedback.findings) == 1
+    assert feedback.findings[0].suggestion == "Yesterday I went to the park."
+
+
+def test_a_comma_inside_a_time_expression_is_repaired():
+    raw = json.dumps({"summary": "One clear fix.", "findings": [{
+        "category": "grammar", "quote": "I have went to many meetings last week.",
+        "suggestion": "I went to many meetings last, week.",
+        "explanation": "Use the simple past with 'last, week'.",
+    }]})
+    feedback = llm.validate_feedback(raw, ["I have went to many meetings last week."])
+    assert feedback.findings[0].suggestion == "I went to many meetings last week."
+    assert feedback.findings[0].explanation == "Use the simple past with 'last week'."
 
 
 def test_a_contraction_suggestion_is_never_reported():
@@ -54,7 +63,7 @@ def test_a_contraction_suggestion_is_never_reported():
         "category": "grammar", "quote": "I am doing well", "suggestion": "I'm doing well",
         "explanation": "Use the contraction in informal speech.",
     }]})
-    feedback = llm.validate_feedback(raw, ["I am doing well"], strict=False)
+    feedback = llm.validate_feedback(raw, ["I am doing well"])
     assert feedback.findings == []
     assert "No clear wording issues" in llm.format_feedback(feedback)
 
@@ -69,10 +78,16 @@ def test_incomplete_output_is_never_a_success(data):
         llm.completed_content(data)
 
 
+def rewrite_reply(messages):
+    return json.dumps({"rewrites": json.loads(messages[-1]["content"])})
+
+
 def test_report_retries_grounding_once_and_fails_without_fake_report(monkeypatch):
     calls = []
 
-    async def chat(*args, **kwargs):
+    async def chat(messages, **kwargs):
+        if kwargs["schema"]["title"] == "Rewrites":
+            return rewrite_reply(messages)
         calls.append(kwargs)
         return json.dumps(finding())
 
@@ -87,7 +102,9 @@ def test_report_retries_grounding_once_and_fails_without_fake_report(monkeypatch
 def test_report_retries_truncated_output(monkeypatch):
     calls = []
 
-    async def chat(*args, **kwargs):
+    async def chat(messages, **kwargs):
+        if kwargs["schema"]["title"] == "Rewrites":
+            return rewrite_reply(messages)
         calls.append(kwargs)
         if len(calls) == 1:
             raise llm.ModelError("truncated")
@@ -96,6 +113,22 @@ def test_report_retries_truncated_output(monkeypatch):
     monkeypatch.setattr(llm, "chat", chat)
     result = asyncio.run(llm.report([Turn(id=uuid4(), role="user", text="Yesterday I go to the park.")]))
     assert len(calls) == 2
+    assert "went" in result["report_text"]
+
+
+def test_report_compares_originals_when_rewrite_fails(monkeypatch):
+    compared = []
+
+    async def chat(messages, **kwargs):
+        if kwargs["schema"]["title"] == "Rewrites":
+            raise llm.ModelError("truncated")
+        compared.append(json.loads(messages[-1]["content"]))
+        return json.dumps(finding())
+
+    monkeypatch.setattr(llm, "chat", chat)
+    result = asyncio.run(llm.report([Turn(id=uuid4(), role="user", text="Yesterday I go to the park.")]))
+    assert compared == [{"original": ["Yesterday I go to the park."],
+                         "natural_rewrite": ["Yesterday I go to the park."]}]
     assert "went" in result["report_text"]
 
 
@@ -175,13 +208,15 @@ def test_long_report_reviews_every_user_character_and_keeps_all_batch_findings(m
     seen, quotes = [], []
 
     async def chat(messages, **kwargs):
-        batch = json.loads(messages[-1]["content"])
+        data = json.loads(messages[-1]["content"])
+        if kwargs["schema"]["title"] == "Rewrites":
+            return json.dumps({"rewrites": data})
+        batch = data["original"]
         assert llm.size(batch) <= llm.REPORT_INPUT_BYTES
         seen.extend(batch)
         quote = batch[0][:40]
         quotes.append(quote)
-        output = finding(quote)
-        return json.dumps(output)
+        return json.dumps(finding(quote))
 
     monkeypatch.setattr(llm, "chat", chat)
     result = asyncio.run(llm.report(turns + [Turn(id=uuid4(), role="assistant", text="Not learner wording.")]))
@@ -201,12 +236,15 @@ def test_large_unicode_turn_splits_without_omitting_or_corrupting_text():
 
 
 def test_failure_in_later_batch_never_returns_partial_success(monkeypatch):
-    count = 0
+    feedback_calls = 0
 
-    async def chat(*args, **kwargs):
-        nonlocal count
-        count += 1
-        if count == 1:
+    async def chat(messages, **kwargs):
+        nonlocal feedback_calls
+        data = json.loads(messages[-1]["content"])
+        if kwargs["schema"]["title"] == "Rewrites":
+            return json.dumps({"rewrites": data})
+        feedback_calls += 1
+        if feedback_calls == 1:
             return '{"summary":"Clear wording.","findings":[]}'
         raise llm.ModelError("Incomplete output")
 
@@ -214,7 +252,7 @@ def test_failure_in_later_batch_never_returns_partial_success(monkeypatch):
     turns = [Turn(id=uuid4(), role="user", text="I like reading. " * 1000)]
     with pytest.raises(llm.ModelError):
         asyncio.run(llm.report(turns))
-    assert count == 3
+    assert feedback_calls == 3
 
 
 def test_bounded_reply_context_keeps_end_of_newest_oversized_turn():

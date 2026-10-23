@@ -47,6 +47,11 @@ class Feedback(ReportFeedback):
     findings: list[Finding] = Field(max_length=12)
 
 
+class Rewrites(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    rewrites: list[str] = Field(min_length=1, max_length=100)
+
+
 class CompletedSession(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: UUID

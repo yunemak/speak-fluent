@@ -13,10 +13,12 @@ SOURCES = {
     "piper": ("rhasspy/piper-voices", "5041a7a49ae5b3a0f30e6837769eb03fdbb231bd", MODELS / "piper"),
 }
 # Kokoro is the natural-sounding voice engine. The files come from the official
-# kokoro-onnx release so the package and the weights always match.
+# kokoro-onnx release so the package and the weights always match. Use the
+# full-precision model for cleaner speech; Voice also accepts an existing int8
+# file as a fallback for installs that already have one.
 KOKORO_RELEASE = "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0"
 KOKORO_FILES = {
-    "kokoro-v1.0.int8.onnx": "kokoro-v1.0.int8.onnx",
+    "kokoro-v1.0.onnx": "kokoro-v1.0.onnx",
     "voices-v1.0.bin": "voices-v1.0.bin",
 }
 

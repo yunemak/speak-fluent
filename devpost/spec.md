@@ -11,7 +11,7 @@ You open a React app in your browser on your Linux computer and put on your head
 
 Pressing Start asks the local conversation model to greet you. Piper turns its written reply into audio. While you speak, Silero detects speech and pauses, and faster-whisper turns your recorded words into text. Ollama runs the model that reads that text and writes the next reply. The browser stops playing the AI's voice as soon as it detects your interruption.
 
-Saying goodbye switches from conversation to feedback. The model reviews your actual words, and Piper reads the report aloud. A completed session is saved as a readable Markdown file on your computer. The sidebar reads those files when you return.
+Saying goodbye switches from conversation to feedback. The model reviews your actual words, and Kokoro reads the report aloud. A completed session is saved as a readable Markdown file on your computer. The sidebar reads those files when you return.
 
 The interface uses your familiar React, JavaScript, Vite, and plain CSS through CSS Modules. Python connects the speech tools. Initial downloads need internet; the finished practice loop does not.
 
@@ -55,9 +55,10 @@ The learner agreed to React/Vite, CSS Modules with plain CSS, Python, Ollama, fa
 | UI | React with JavaScript/JSX and Vite; builds on existing experience | [React](https://react.dev/learn), [Vite](https://vite.dev/guide/) |
 | Styling | Component `.module.css` files; global plain CSS for resets and variables | [Vite CSS Modules](https://vite.dev/guide/features.html#css-modules) |
 | Python HTTP backend | FastAPI, Uvicorn, Pydantic request validation, HTTPX for Ollama calls | [FastAPI](https://fastapi.tiangolo.com/), [Uvicorn](https://www.uvicorn.org/), [Pydantic](https://docs.pydantic.dev/latest/), [HTTPX](https://www.python-httpx.org/) |
-| Conversation and feedback | Ollama, `qwen3:4b-q4_K_M`, `think: false`; explicit original 4B variant with GPU headroom | [Ollama API](https://docs.ollama.com/api/chat), [model](https://ollama.com/library/qwen3:4b-q4_K_M) |
+| Conversation | Ollama, `qwen3:4b-q4_K_M`, `think: false`; explicit original 4B variant with GPU headroom | [Ollama API](https://docs.ollama.com/api/chat), [model](https://ollama.com/library/qwen3:4b-q4_K_M) |
+| Feedback | Ollama, `qwen3:8b`, `think: false`; natural rewrite plus original/rewrite comparison after practice ends | [Ollama API](https://docs.ollama.com/api/chat), [model](https://ollama.com/library/qwen3:8b) |
 | Recognition | faster-whisper `small.en`, CPU `int8`, English transcription; upgraded from `base.en` for the learner's recognition retry | [faster-whisper](https://github.com/SYSTRAN/faster-whisper), [model](https://huggingface.co/Systran/faster-whisper-small.en) |
-| Voice | Kokoro `voices-v1.0.bin` (`af_heart` default), CPU ONNX Runtime int8; Piper `en_US-lessac-medium` remains the small fallback | [Kokoro-82M ONNX](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX), [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) |
+| Voice | Kokoro `voices-v1.0.bin` (`af_heart` default), CPU ONNX Runtime full-precision model, peak-normalized with short fades; Piper `en_US-lessac-medium` remains the small fallback | [Kokoro-82M ONNX](https://huggingface.co/onnx-community/Kokoro-82M-v1.0-ONNX), [kokoro-onnx](https://github.com/thewh1teagle/kokoro-onnx) |
 | Turn detection | Silero VAD in the browser through `@ricky0123/vad-web`, initially model `v5`; detects interruptions without a server round trip | [Silero](https://github.com/snakers4/silero-vad), [browser integration](https://docs.vad.ricky0123.com/user-guide/browser/), [callbacks](https://docs.vad.ricky0123.com/user-guide/api/) |
 | Browser inference | Compatible `onnxruntime-web`; serve its WASM and JavaScript assets locally | [ONNX Runtime Web](https://onnxruntime.ai/docs/get-started/with-javascript/web.html) |
 | Audio | Browser getUserMedia and Web Audio; Python standard-library `wave` and NumPy for PCM input | [getUserMedia](https://developer.mozilla.org/en-US/docs/Web/API/MediaDevices/getUserMedia), [Web Audio](https://developer.mozilla.org/en-US/docs/Web/API/Web_Audio_API), [wave](https://docs.python.org/3/library/wave.html), [NumPy](https://numpy.org/doc/stable/) |
@@ -88,10 +89,11 @@ Start `ollama serve` in a terminal, unless an existing local service already run
 
 ```bash
 ollama pull qwen3:4b-q4_K_M
+ollama pull qwen3:8b
 .venv/bin/python scripts/download_models.py
 ```
 
-The Python script downloads the complete faster-whisper model/tokenizer files and Piper voice plus configuration into `models/`. Frontend `postinstall` copies VAD model, worklet, WASM, and required `.mjs` files from installed packages into `frontend/public/vendor/`. Setup records model sources and versions. Missing assets must fail readiness checks rather than trigger runtime downloads.
+The Python script downloads the complete faster-whisper model/tokenizer files, the Piper fallback voice, and the full-precision Kokoro model plus voice pack into `models/`. Frontend `postinstall` copies VAD model, worklet, WASM, and required `.mjs` files from installed packages into `frontend/public/vendor/`. Setup records model sources and versions. Missing assets must fail readiness checks rather than trigger runtime downloads.
 
 Run the backend in a second terminal:
 
@@ -167,7 +169,7 @@ Implements `prd.md > Start and Spoken Conversation`.
 
 `llm.py` calls Ollama through HTTPX. `prompts.py` holds separate opening, conversation, and feedback instructions. The opening is AI-generated everyday conversation; subsequent replies relate to the user and normally include a relevant follow-up. Ask for short, natural replies (typically 1–3 sentences) and defer corrections until feedback.
 
-Use Qwen3 4B without thinking output, initially an 8,192-token context and bounded output. The full transcript stays in the browser; normal replies use recent context within the model budget. Bound both reply context and feedback input by measured UTF-8 bytes (`llm.INPUT_BYTES`), not character counts, so multi-byte text cannot overflow the context window. An oversized newest turn keeps its final characters and marks earlier text as omitted from reply context.
+Use Qwen3 4B without thinking output for live conversation, with an 8,192-token context and bounded output. Use Qwen3 8B for feedback after practice ends: first rewrite each user turn into natural English, then compare the original and rewrite to produce grounded findings. The full transcript stays in the browser; normal replies use recent context within the model budget. Bound both reply context and feedback input by measured UTF-8 bytes (`llm.INPUT_BYTES`), not character counts, so multi-byte text cannot overflow the context window. An oversized newest turn keeps its final characters and marks earlier text as omitted from reply context.
 
 Feedback must cover all user turns: split user turns into bounded batches (`llm.feedback_batches`), review every batch, collect quoted findings, and combine them into one report. Never silently claim to have reviewed omitted turns. A failure in any batch fails the whole report rather than returning a partial one. The combined report states how many user turns were reviewed when more than one batch was needed.
 
@@ -181,7 +183,7 @@ After a farewell, finish the final user transcription, stop accepting practice t
 
 Request structured findings `{category, quote, suggestion, explanation}` plus a brief summary. Each quote must occur in an actual user turn; reject unsupported quotes and retry once with explicit grounding instructions. Empty findings are valid: explain that no clear wording issues were found rather than inventing mistakes. Format the same accepted report for visible text, spoken synthesis, and storage. Quote checking prevents fabricated source examples but does not prove a correction is linguistically sound; check that manually in the early milestone.
 
-A finding whose suggestion repeats its quote, or differs only by optional contraction style ('I am' versus 'I'm'), carries no advice: on the first attempt treat it as invalid output and retry, then drop that single finding rather than losing the whole report. Ungrounded quotes always fail the batch. The report prompt must ask for a sentence-by-sentence review so an error in an early sentence is not skipped because later sentences are correct, must show that shape with an example that does not reuse earlier example wording, and must state that contractions, article use, and register choices are never mistakes. Word-choice findings need a real reason: unusual wording that would confuse a listener, not a more elegant synonym. The report prompt asks for a sentence-by-sentence review so an error in an early sentence is not skipped because later sentences are correct, and must show that shape with an example that does not reuse earlier example wording.
+A finding whose suggestion repeats its quote, or differs only by optional contraction style ('I am' versus 'I'm'), carries no advice: drop that single finding rather than losing the whole report. Ungrounded quotes always fail the batch. The report prompt must state that contractions, article use, and register choices are never mistakes. Word-choice findings need a real reason: unusual wording that would confuse a listener, not a more elegant synonym. The two-pass prompt asks the model to rewrite naturally first and then report real differences, with explicit collocation checks such as traffic increasing rather than getting longer. The comparison prompt must also check the original independently because the rewrite may remove an awkward phrase instead of replacing it.
 
 ### Local Voice Output
 
@@ -229,7 +231,7 @@ All routes are local, under `/api`, using Vite's proxy. JSON requests carry a `r
 
 | Route | Request | Successful response |
 | --- | --- | --- |
-| `GET /api/health` | None | `{ready, checks: {ollama, chat_model, stt, tts, history_writable, vad_assets}, problems[]}` |
+| `GET /api/health` | None | `{ready, checks: {ollama, chat_model, feedback_model, stt, tts, history_writable, vad_assets}, problems[]}` |
 | `POST /api/transcribe` | `audio/wav`, mono PCM16 at 16 kHz | `{text, is_farewell, no_speech_prob}`; empty text means no usable speech; `no_speech_prob` is the duration-weighted model estimate that the capture was not speech |
 | `POST /api/reply` | `{request_id, opening, turns[]}` | `{request_id, text}` |
 | `POST /api/report` | `{request_id, turns[]}` | `{request_id, summary, findings[], report_text}` |
@@ -370,7 +372,7 @@ Use focused automated tests for cancellation races, false-interruption resume, s
 ## What Was Simplified and Why
 
 - Familiar browser UI plus local Python services; one Linux machine and headphones are the agreed target setup.
-- One small conversation model serves both dialogue and feedback; one downloaded voice, with no model-picker interface.
+- A 4B model serves live dialogue; an 8B model runs the two feedback passes after practice ends. One downloaded voice, with no model-picker interface.
 - Completed sessions use readable files, fulfilling the PRD without database setup.
 - Stop on detected interruption; situation-dependent decisions remain deferred per the PRD.
 - Short whole-reply audio and request/response HTTP first; no continuous token/audio transport is needed to prove the loop, provided the latency check passes.

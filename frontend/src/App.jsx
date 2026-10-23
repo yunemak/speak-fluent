@@ -67,7 +67,6 @@ export default function App() {
           onStart={start} onBack={() => setSelectedId(null)} onRetry={() => setEntryRefresh(value => value + 1)}
           onDelete={remove} />
         : <ConversationView conversation={{ ...conversation, start }} showText={showText} />}
-      <footer className={styles.footer}>Just a conversation. No scores. No pressure.</footer>
     </main>
   </div>;
 }

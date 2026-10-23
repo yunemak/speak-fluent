@@ -9,7 +9,7 @@ import wave
 
 import numpy as np
 
-from .config import KOKORO_MODEL, KOKORO_VOICES, PIPER_VOICE_PATH, VOICE_NAME
+from .config import KOKORO_INT8_MODEL, KOKORO_MODEL, KOKORO_VOICES, PIPER_VOICE_PATH, VOICE_NAME
 from .spoken_text import spoken_text
 
 
@@ -22,15 +22,22 @@ class Voice:
         self.engine = None
         self.voice = VOICE_NAME
 
+    def _kokoro_model(self):
+        for path in (KOKORO_MODEL, KOKORO_INT8_MODEL):
+            if path.is_file():
+                return path
+        return None
+
     def available(self):
-        return KOKORO_MODEL.is_file() and KOKORO_VOICES.is_file(), PIPER_VOICE_PATH.is_file()
+        return self._kokoro_model() is not None and KOKORO_VOICES.is_file(), PIPER_VOICE_PATH.is_file()
 
     def load(self):
         if self.engine:
             return
-        if KOKORO_MODEL.is_file() and KOKORO_VOICES.is_file():
+        model = self._kokoro_model()
+        if model is not None and KOKORO_VOICES.is_file():
             from kokoro_onnx import Kokoro
-            self.kokoro = Kokoro(str(KOKORO_MODEL), str(KOKORO_VOICES))
+            self.kokoro = Kokoro(str(model), str(KOKORO_VOICES))
             # Validate the name now: a typo in SPEAK_FLUENT_VOICE would
             # otherwise only fail the first spoken reply mid-practice.
             names = self.kokoro.get_voices()
@@ -46,11 +53,12 @@ class Voice:
         self.engine = "piper"
 
     def voices(self):
-        if not KOKORO_MODEL.is_file() or not KOKORO_VOICES.is_file():
+        model = self._kokoro_model()
+        if model is None or not KOKORO_VOICES.is_file():
             return []
         from kokoro_onnx import Kokoro
         if self.kokoro is None:
-            self.kokoro = Kokoro(str(KOKORO_MODEL), str(KOKORO_VOICES))
+            self.kokoro = Kokoro(str(model), str(KOKORO_VOICES))
         return self.kokoro.get_voices()
 
     def synthesize(self, text):
@@ -64,8 +72,30 @@ class Voice:
 
     def _kokoro(self, text):
         samples, rate = self.kokoro.create(text, voice=self.voice, speed=1.0, lang="en-us")
-        audio = (np.clip(np.asarray(samples, dtype=np.float32), -1.0, 1.0) * 32767).astype("<i2")
+        samples = self._master(np.asarray(samples, dtype=np.float32), rate)
+        audio = (samples * 32767).astype("<i2")
         return wav_bytes(audio, rate)
+
+    @staticmethod
+    def _master(samples, rate):
+        """Remove DC, use the full headroom, and fade clicks at the edges.
+
+        Kokoro's raw output peaks around half scale. That makes the learner turn
+        the speaker up, which also exposes hiss from the playback chain. A clean
+        0.9 peak keeps the voice clear without changing its character.
+        """
+        if samples.size == 0:
+            return samples
+        samples = samples - float(samples.mean())
+        peak = float(np.max(np.abs(samples)))
+        if peak > 0:
+            samples = samples * (0.9 / peak)
+        fade = min(int(rate * 0.008), samples.size // 2)
+        if fade > 0:
+            ramp = np.linspace(0.0, 1.0, fade, dtype=np.float32)
+            samples[:fade] *= ramp
+            samples[-fade:] *= ramp[::-1]
+        return np.clip(samples, -1.0, 1.0)
 
     def _piper(self, text):
         buffer = io.BytesIO()
