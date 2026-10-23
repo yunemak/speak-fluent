@@ -157,14 +157,14 @@ Implementation of the final slice is complete and mechanically verified, and is 
 
 - [x] Learner retry: Kokoro voice sounds acceptable for practice (implemented in `393a99f`; the learner described it as “really human-like” and loved it).
 - [x] Learner retry: delete a disposable saved conversation and confirm other entries remain. Confirmed.
-- [ ] Learner retry: correct full forms such as “I am doing well” receive no contraction-only correction.
+- [x] Correct full forms such as “I am doing well” receive no contraction-only correction. Verified with a real Qwen3 8B report: “I am doing well today.” produced zero findings, while “I am doing well. Yesterday I go to the park.” produced only the past-tense correction.
 - [x] Learner retry: spoken farewell ends practice, including during an AI reply. Confirmed (“Goodbye works great”).
 - [x] Learner retry: cough during AI speech does not permanently stop the reply, and “I’m doing well” becomes a turn at normal and quiet volume. Confirmed.
 - [x] Learner retry: the tagline only appears on the start screen; a similarly long turn receives several specific findings. Confirmed in the latest round; the long networking turn now returns three grounded findings.
 - [x] Learner retry: the AI voice is clear of static after the 9 kHz low-pass filter. Confirmed (“It works good”).
 - [ ] Learner runs the full journey with external networking disconnected and checks the sticky sidebar while scrolling. Disconnected operation confirmed; sticky-sidebar visual retry still open.
 
-Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, the current voice, the tagline placement, the long-turn feedback, and the static-free voice after the 9 kHz filter. Auto-scroll was added at the learner's request and browser-verified. The latest round added clear leave-taking intent matching, structured history parsing, and the shared chat-bubble transcript. Remaining: contraction-only feedback confirmation; the sticky-sidebar visual check; and the full disconnected final review.
+Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, the current voice, the tagline placement, the long-turn feedback, and the static-free voice after the 9 kHz filter. Auto-scroll was added at the learner's request and browser-verified. The latest round added clear leave-taking intent matching, structured history parsing, and the shared chat-bubble transcript. The automated offline journey and a real Qwen3 8B feedback check also pass. Remaining: the learner's sticky-sidebar visual check and final disconnected pass, then the app map/learning wrap-up and Devpost submission.
 
 ## Code Tour and App Map
 
