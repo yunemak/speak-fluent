@@ -115,20 +115,21 @@ Implementation of the final slice is complete and mechanically verified, and is 
 - Recognition now peak-normalizes quiet microphone audio before faster-whisper. This also fixed the clipped-onset example: the same clip that previously returned “doing well” now returns “I'm doing well.” The endpoint returns a duration-weighted `no_speech_prob` alongside the text.
 - A short capture that never reached the interruption threshold is still checked as a farewell candidate. If it is a confident non-closing phrase and the app is listening (not playing or generating), it now becomes a normal turn instead of being silently dropped. A very short empty capture (<0.6 s) stays silent rather than showing “I didn’t catch that” for a cough.
 - Verification: 100 Python tests, 24 JavaScript tests, and the frontend build pass. New tests cover burst rejection, 320 ms confirmation, resume while speaking, resume while thinking, and quiet short-phrase acceptance. Browser checks: `resume-check.mjs` triggered a real VAD interruption, supplied a noise transcript, and observed the opening resume 0.9 s after the stop with no fake turn; `short-phrase-check.mjs` recognized full, quiet, and clipped “I’m doing well” as turns; smoke and farewell-over-speech still pass.
-- Pending learner retest: cough once during AI speech (the reply should continue, either without stopping or after a short pause), and say “I’m doing well” at normal and quiet volume (it should become a turn). The learner's actual cough was not reproducible synthetically; if it still permanently stops speech, capture a short cough recording to tune further.
+- Learner retest passed: the AI kept talking through a cough; normal speech still stopped it promptly and received an answer; “I’m doing well” was recognized repeatedly; the learner described the current Kokoro voice as “really human-like” and loved it.
+- Auto-scroll: the live transcript now follows the newest message. If the learner scrolls up to reread earlier turns, following pauses; returning near the bottom resumes it. Implemented in `ConversationView.jsx` and verified in Chromium at 1440×700 through three turns, a manual scroll-up (no yank), and a return to the bottom.
 
 ## Final Review
 
 - [ ] Final review complete — feedback resolved and learner confirms ready to ship
 
-- [ ] Learner retry: Kokoro voice sounds acceptable for practice (implemented in `393a99f`; subjective voice quality is not agent-verified).
+- [x] Learner retry: Kokoro voice sounds acceptable for practice (implemented in `393a99f`; the learner described it as “really human-like” and loved it).
 - [x] Learner retry: delete a disposable saved conversation and confirm other entries remain. Confirmed.
 - [ ] Learner retry: correct full forms such as “I am doing well” receive no contraction-only correction.
 - [x] Learner retry: spoken farewell ends practice, including during an AI reply. Confirmed (“Goodbye works great”).
-- [ ] Learner retry: cough during AI speech does not permanently stop the reply, and “I’m doing well” becomes a turn at normal and quiet volume.
+- [x] Learner retry: cough during AI speech does not permanently stop the reply, and “I’m doing well” becomes a turn at normal and quiet volume. Confirmed.
 - [ ] Learner runs the full journey with external networking disconnected and checks the sticky sidebar while scrolling. Disconnected operation confirmed; sticky-sidebar visual retry still open.
 
-Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, and disconnected operation. The latest interruption and short-phrase fixes are implemented and mechanically verified but await the learner's cough/phrase retest. Voice choice remains pending.
+Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, and the current voice. Auto-scroll was added at the learner's request and browser-verified. Remaining: contraction-only feedback retry, the sticky-sidebar visual check, and the full disconnected final review.
 
 ## Code Tour and App Map
 

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import Robot from './Robot.jsx';
 import styles from './ConversationView.module.css';
 
@@ -10,6 +11,30 @@ const labels = {
 
 export default function ConversationView({ conversation: c, showText }) {
   const ready = ['idle', 'complete'].includes(c.phase);
+  const endRef = useRef(null);
+  const followingRef = useRef(true);
+  const lastTurn = c.turns[c.turns.length - 1];
+
+  // Keep the newest message in view unless the learner has deliberately
+  // scrolled up to reread earlier turns.
+  useEffect(() => {
+    const update = () => {
+      const page = document.scrollingElement || document.documentElement;
+      followingRef.current = page.scrollHeight - page.scrollTop - window.innerHeight < 160;
+    };
+    window.addEventListener('scroll', update, { passive: true });
+    return () => window.removeEventListener('scroll', update);
+  }, []);
+
+  useEffect(() => {
+    if (!followingRef.current || !endRef.current) return;
+    const smooth = !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const frame = requestAnimationFrame(() => {
+      endRef.current?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'end' });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [c.turns.length, lastTurn?.text, lastTurn?.interrupted, c.report, c.savedConversation, showText]);
+
   return <section className={styles.view}>
     <p className={styles.eyebrow}>EVERYDAY ENGLISH · YOUR OWN PACE</p>
     <Robot speaking={c.speaking} />
@@ -48,6 +73,7 @@ export default function ConversationView({ conversation: c, showText }) {
         <h2>Your feedback</h2><p>{c.report}</p>
       </article>}
       {c.savedConversation && <p className={styles.hint}>Saved in <code>data/conversations/{c.savedConversation.filename}</code>. Open it from the sidebar anytime.</p>}
+      <div ref={endRef} aria-hidden="true" />
     </div>}
   </section>;
 }

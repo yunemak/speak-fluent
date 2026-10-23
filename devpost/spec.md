@@ -115,6 +115,7 @@ Implements `prd.md > Screens and Layout`, `prd.md > Look and Feel`, and `prd.md 
 
 - Roughly 10% sidebar / 90% main area at the target desktop size. Use a small minimum sidebar width to keep history labels usable.
 - Keep the history sidebar pinned to the viewport during long-conversation scrolling, with its own overflow. On narrow screens use a bounded-height sticky history strip so practice content stays accessible.
+- Keep the live transcript following the newest turn as messages, interruption notes, and the report are added. Pause following when the learner scrolls up to reread, and resume once the view returns near the bottom.
 - Draw the simple 2D robot as a local SVG React component. Its balloon-like CSS background changes color only during actual audible playback, including feedback.
 - CSS Modules for components; global CSS variables for colors and spacing. Use system fonts so nothing loads from a font service.
 - Starting visual defaults for review: light neutral background, dark readable text, cool blue idle balloon, warm peach speaking balloon. These are implementation defaults, not previously chosen learner colors.

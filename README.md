@@ -88,7 +88,9 @@ buffered audio so your first word is not lost. If a cough or other noise does st
 a reply, the same reply resumes where it stopped instead of disappearing.
 Quiet speech is level-normalized before recognition.
 Hide/show text whenever you want. Emojis are reserved for clear emotional replies
-and are skipped by voice output. Say **“Goodbye”** or **“End the conversation”** to
+and are skipped by voice output. The live transcript follows the newest message
+automatically; if you scroll up to reread, it resumes following when you return
+to the bottom. Say **“Goodbye”** or **“End the conversation”** to
 finish and hear feedback. Brief speech candidates are checked for a closing phrase
 without stopping playback unless the phrase is recognized; a confident short phrase
 heard while the app is listening becomes a normal turn. Input is stopped during

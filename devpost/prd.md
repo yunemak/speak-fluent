@@ -59,7 +59,7 @@ Source: `scope.md > The Core Loop`, `The Unique Kernel`, and `The POC Boundary`.
 
 ### Speech Text and Speaking Animation
 
-AI speech is visible as text by default. The user can hide and reveal it without ending the conversation or muting speech. Hiding text does not remove it from the completed transcript. The robot's balloon-like background changes color while the AI speaks.
+AI speech is visible as text by default. The live transcript follows new turns so the newest message stays in view; if the user scrolls up to reread earlier turns, following pauses until the view returns to the bottom. The user can hide and reveal the AI text without ending the conversation or muting speech. Hiding text does not remove it from the completed transcript. The robot's balloon-like background changes color while the AI speaks.
 
 Emojis may appear only with genuinely emotional AI replies (such as celebration or sympathy), not as routine decoration on greetings, ordinary questions, or every turn. They are silent decorations: voice output must skip them rather than pronounce emoji names. This preference was clarified during the first build's hands-on review.
 
