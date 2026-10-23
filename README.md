@@ -3,7 +3,8 @@
 An English conversation partner that runs on your Linux computer. Speak naturally,
 interrupt when you need to, and say goodbye to hear useful wording feedback.
 
-**Build status:** the speech loop and saved history are tested and reviewed; final offline/recovery work is in progress.
+**Build status:** the speech loop, saved history, offline run, and recovery paths are
+tested with real local models; the learner's final disconnected review is what is left.
 Completed conversations are saved locally after feedback playback and can be reopened
 from the sidebar after restarting the app. Long conversations are reviewed in batches, so
 every spoken turn is covered by the feedback report.
@@ -14,10 +15,11 @@ every spoken turn is covered by the feedback report.
 - Node.js 22.12+ (tested 24.18.0) and Python 3.12 (tested 3.12.15).
 - Ollama (tested 0.40.7). Initial downloads require internet and several GB of disk.
 - Tested on an RTX 5070 Laptop GPU with 8 GB VRAM and 32 GB system RAM.
-  Ollama runs Qwen3 on the GPU; Whisper `small.en` recognition and voice synthesis
-  use the CPU. The larger recognizer is being tried after `base.en` misheard words
-  in the first microphone review; it adds roughly half a second on short synthetic
-  examples, with actual microphone accuracy still to be compared.
+  Ollama runs Qwen3 on the GPU; Whisper `small.en` recognition and Kokoro voice
+  synthesis use the CPU. The recognizer moved to `small.en` after `base.en`
+  misheard words in the first microphone review; it adds roughly half a second on
+  short synthetic examples, with accuracy on the learner's own voice still to be
+  compared.
 
 React 19.2.0, Vite 7.3.7, vad-web 0.0.31, and browser ONNX Runtime 1.22.0 are
 pinned in `frontend/package.json` / `package-lock.json`. Python versions are pinned
@@ -59,8 +61,8 @@ ollama pull qwen3:4b-q4_K_M
 
 Use the **explicit model tag above**. The shorter `qwen3:4b` alias now points at a
 thinking-only model that did not respect `think: false` in the integration check.
-The download script pins tested Whisper/Piper revisions, can be rerun, and records
-sources in `models/sources.json`. npm's postinstall copies the browser VAD model,
+The download script pins tested Whisper/Piper revisions, fetches the Kokoro model and
+voice pack, can be rerun, and records sources in `models/sources.json`. npm's postinstall copies the browser VAD model,
 worklet, WASM and JavaScript modules into `frontend/public/vendor/` for local use.
 See [model sources and licenses](models/README.md).
 
