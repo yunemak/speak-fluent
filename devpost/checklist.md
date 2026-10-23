@@ -164,19 +164,19 @@ Implementation of the final slice is complete and mechanically verified, and is 
 - [x] Learner retry: the AI voice is clear of static after the 9 kHz low-pass filter. Confirmed (“It works good”).
 - [x] Learner runs the full journey with external networking disconnected and checks the sticky sidebar while scrolling. Confirmed (“Works great”); the automated offline journey also passes with no external page requests or service sockets, and the sidebar holds its viewport position at desktop and narrow widths.
 
-Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, the current voice, the tagline placement, the long-turn feedback, the static-free voice after the 9 kHz filter, and the final sticky-sidebar/disconnected pass. Auto-scroll was added at the learner's request and browser-verified. The latest round added clear leave-taking intent matching, structured history parsing, and the shared chat-bubble transcript. The automated offline journey and a real Qwen3 8B feedback check also pass. Remaining: the brief learning wrap-up, then Devpost submission.
+Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, the current voice, the tagline placement, the long-turn feedback, the static-free voice after the 9 kHz filter, and the final sticky-sidebar/disconnected pass. Auto-scroll was added at the learner's request and browser-verified. The latest round added clear leave-taking intent matching, structured history parsing, and the shared chat-bubble transcript. The automated offline journey and a real Qwen3 8B feedback check also pass, and the learner reviewed the voice code route. Remaining: publish the updated public repository, record the demo video, and complete the learner-written Devpost submission.
 
 ## Code Tour and App Map
 
-- [ ] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap
-- [ ] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate
+- [x] Learning activity complete — guided route, focused alternative, prior practice connected, or brief recap. Learner reviewed the voice route through `frontend/src/lib/conversation.js`, `backend/app.py`, and `backend/voice.py`, then chose to move to shipping.
+- [x] Optional edit and transfer reflection addressed — offered/declined/already covered/not applicable as appropriate. The optional label edit was offered and not taken; the learner moved directly to shipping, so no reflection answer was required.
 - [x] `devpost/app-map.html` generated from finished code, checked, and shown, including a project-grounded practice to reuse. Checked in Chromium at 1280×900: 3 route stops, 1 optional reveal, no scripts, no console errors, and no horizontal overflow. The map uses the voice path as its worked example and names the 9 kHz filter.
 
-Activity and evidence: App map generated at `devpost/app-map.html`; the guided route follows one spoken reply through the browser controller, `/api/speech`, and Kokoro mastering. Voice-path practice is available but not yet toured with the learner.
+Activity and evidence: Learner reviewed the voice route through `frontend/src/lib/conversation.js` (`Conversation.respond` / `this.api.speech`), `backend/app.py` (`@app.post("/api/speech")`), and `backend/voice.py` (`Voice.synthesize` → `_kokoro` → `_master` → `_low_pass`). This connects directly to the learner's goal of understanding how AI can speak.
 Route and stops: `frontend/src/lib/conversation.js` → `Conversation.respond` / `this.api.speech`; `backend/app.py` → `@app.post("/api/speech")`; `backend/voice.py` → `Voice.synthesize` → `_kokoro` → `_master` → `_low_pass`.
-Edit outcome: Not yet offered.
-Reflection: Not yet offered; any personal answer belongs only in the ignored learner profile.
-Activity mode: Guided route prepared for a learner new to local AI; offer the focused recap/map if they decline the walkthrough.
+Edit outcome: Optional label edit offered; learner chose to move to shipping without taking it.
+Reflection: Optional question not answered; learner moved directly to shipping. No personal reflection was recorded.
+Activity mode: Guided route completed by review; app map at `devpost/app-map.html`.
 
 ## Revisions
 
