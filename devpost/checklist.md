@@ -142,14 +142,14 @@ Implementation of the final slice is complete and mechanically verified, and is 
 - Mechanical verification: 133 Python tests, 24 JavaScript tests, and the frontend build (79 modules) pass.
 - Learner confirmed the long farewell and saved-conversation chat bubbles in the latest retest. The contraction-only retry, the voice-static retest, the sticky-sidebar visual check, and the full disconnected final review remain.
 
-## High-Frequency Voice Static Fix (learner retest pending)
+## High-Frequency Voice Static Fix (learner confirmed)
 
 - Learner reported a remaining static noise in the AI voice and said everything else looked perfect.
 - Diagnosis: real `/api/speech` output was analyzed before changing the voice. Chromium's 24 kHz → 48 kHz decode added no imaging or aliasing; the full-precision and int8 Kokoro models produced effectively identical audio; and `af_heart` carried an unusually hot 9–12 kHz band (about 3.4% of total energy, versus about 0.2% for `af_sarah`) with 8–12 kHz spectral flatness around 0.51. The static is in the voice's top octave, not browser resampling, WAV encoding, or playback gain.
 - Fix: `Voice._low_pass` now applies a 127-tap Hamming-windowed sinc low-pass at 9 kHz with edge padding and linear phase, before DC removal, 0.9 peak normalization, and the existing 8 ms fades. It removes Kokoro's 9–12 kHz hiss while preserving the natural 4–9 kHz speech band and the current `af_heart` voice.
 - Real API evidence after the filter: 9–10 kHz energy dropped from 0.0138 to 0.000143, 10–12 kHz dropped from 0.0344 to 0.000000, the output remained 24 kHz mono WAV at peak 0.9, and Whisper transcribed the test sentence exactly. Browser `farewell-history-check.mjs` still passed the full farewell, feedback, save, and saved-conversation bubble path.
 - Mechanical verification: 135 Python tests, 24 JavaScript tests, and the frontend build (79 modules) pass.
-- Learner action pending: reload the app, let the AI speak, and confirm the static is gone. If any remains, the next candidate is a cleaner voice such as `af_sarah`, but the current voice and filter are the intended fix.
+- Learner confirmed after retest: the AI voice works well and the static is gone. The 9 kHz filter with the current `af_heart` voice is the accepted fix.
 
 ## Final Review
 
@@ -161,10 +161,10 @@ Implementation of the final slice is complete and mechanically verified, and is 
 - [x] Learner retry: spoken farewell ends practice, including during an AI reply. Confirmed (“Goodbye works great”).
 - [x] Learner retry: cough during AI speech does not permanently stop the reply, and “I’m doing well” becomes a turn at normal and quiet volume. Confirmed.
 - [x] Learner retry: the tagline only appears on the start screen; a similarly long turn receives several specific findings. Confirmed in the latest round; the long networking turn now returns three grounded findings.
-- [ ] Learner retry: the AI voice is clear of static after the 9 kHz low-pass filter. Pending.
+- [x] Learner retry: the AI voice is clear of static after the 9 kHz low-pass filter. Confirmed (“It works good”).
 - [ ] Learner runs the full journey with external networking disconnected and checks the sticky sidebar while scrolling. Disconnected operation confirmed; sticky-sidebar visual retry still open.
 
-Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, the current voice, the tagline placement, and the long-turn feedback. Auto-scroll was added at the learner's request and browser-verified. The latest round added clear leave-taking intent matching, structured history parsing, and the shared chat-bubble transcript. Remaining: learner retest of the voice after the 9 kHz static filter; contraction-only feedback confirmation; the sticky-sidebar visual check; and the full disconnected final review.
+Resume after service restart: restored Ollama, Python and Vite; all readiness checks passed, the frontend returned HTTP 200, and actual speech synthesis returned valid 24 kHz audio. The learner confirmed goodbye, delete, disconnected operation, cough handling, short-phrase recognition, the current voice, the tagline placement, the long-turn feedback, and the static-free voice after the 9 kHz filter. Auto-scroll was added at the learner's request and browser-verified. The latest round added clear leave-taking intent matching, structured history parsing, and the shared chat-bubble transcript. Remaining: contraction-only feedback confirmation; the sticky-sidebar visual check; and the full disconnected final review.
 
 ## Code Tour and App Map
 
@@ -180,7 +180,7 @@ Activity mode: Pending; default to live app and editor after final revisions.
 
 ## Revisions
 
-- Remove the remaining AI-voice static by low-pass filtering Kokoro's hot 9–12 kHz band at 9 kHz before mastering, while preserving the 4–9 kHz speech band and the learner's preferred `af_heart` voice. Real audio and browser checks confirmed the filter and the full farewell/history journey.
+- Remove the remaining AI-voice static by low-pass filtering Kokoro's hot 9–12 kHz band at 9 kHz before mastering, while preserving the 4–9 kHz speech band and the learner's preferred `af_heart` voice. Real audio and browser checks confirmed the filter and the full farewell/history journey; the learner then confirmed the voice sounds good with no static.
 - Recognize clear leave-taking intent and render saved conversations as chat bubbles after the learner's latest report. The deterministic matcher now accepts “let's call it a day,” “I need to go now,” and a farewell at the end of a longer turn while rejecting future plans, reported goodbyes, negations, and questions. History detail reads parse the canonical Markdown into structured turns and report text, and a shared `Transcript` component gives saved conversations the same bubbles as live practice.
 - Add a two-pass feedback review after the learner's long networking turn received only one weak finding: a natural rewrite first, then an original-versus-rewrite comparison with Qwen3 8B. Explicit collocation checks and independent review of the original catch phrases such as “traffic gets longer”, “be in depth for”, and “the fast internet”; no-op findings are dropped without losing the rest of the report.
 - Download the full-precision Kokoro model and master its output after the learner heard background noise: remove DC, peak-normalize to 0.9, and apply 8 ms fades. Respect the learner's request to remove the page-bottom tagline: the global footer is gone, and “Just a conversation. No scores. No pressure.” now appears only on the idle start screen.
