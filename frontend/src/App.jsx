@@ -45,6 +45,12 @@ export default function App() {
     void conversation.start();
   };
 
+  const backToPractice = () => {
+    void conversation.reset();
+    setSelectedId(null);
+    setEntry({ data: null, loading: false, error: '' });
+  };
+
   const remove = async id => {
     await api.deleteConversation(id);
     setSelectedId(current => current === id ? null : current);
@@ -65,7 +71,7 @@ export default function App() {
       </header>
       {selectedId && historyAvailable
         ? <HistoryView key={selectedId} entry={entry.data?.id === selectedId ? entry.data : null} loading={entry.loading} error={entry.error}
-          onStart={start} onBack={() => setSelectedId(null)} onRetry={() => setEntryRefresh(value => value + 1)}
+          onStart={start} onBack={backToPractice} onRetry={() => setEntryRefresh(value => value + 1)}
           onDelete={() => remove(selectedId)} />
         : <ConversationView conversation={{ ...conversation, start }} showText={showText} />}
     </main>

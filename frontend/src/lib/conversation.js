@@ -1,5 +1,5 @@
 export const initialState = () => ({
-  phase: 'idle', turns: [], report: '', speaking: false,
+  phase: 'idle', turns: [], report: '', title: '', speaking: false,
   userSpeaking: false, warning: '', retryable: false, retryLabel: 'Retry', sessionId: null,
   savedConversation: null,
 });
@@ -254,7 +254,13 @@ export class Conversation {
         if (!current()) return;
         if (result.request_id !== request_id) throw new Error('Received an outdated response. Please retry.');
         delivery.text = report ? result.report_text : result.text;
-        if (report) this.update({ report: delivery.text });
+        if (report) this.update({ report: delivery.text, title: result.title || '' });
+      }
+      if (report && !delivery.savePromise) {
+        if (!this.state.completedAt) this.update({ completedAt: new Date().toISOString() });
+        // Persist now, not after the feedback audio. A refresh during playback
+        // must not lose the finished conversation.
+        delivery.savePromise = this.persist().then(saved => ({ saved }), error => ({ error }));
       }
       delivery.chunks ??= report ? speechChunks(delivery.text) : [delivery.text];
       while (delivery.index < delivery.chunks.length) {
@@ -307,10 +313,17 @@ export class Conversation {
       }
       if (report) {
         await this.audio.close();
-        if (current()) {
-          this.update({ completedAt: new Date().toISOString() });
-          await this.save();
+        if (!current()) return;
+        const persisted = await delivery.savePromise;
+        if (persisted?.error) {
+          this.fail(persisted.error, () => this.save(), 'Retry save');
+          return;
         }
+        if (!persisted?.saved) {
+          await this.save();
+          return;
+        }
+        this.update({ phase: 'complete', savedConversation: persisted.saved });
       } else {
         this.delivery = null;
         this.update({ phase: 'listening' });
@@ -320,19 +333,28 @@ export class Conversation {
     }
   }
 
+  async persist() {
+    const body = {
+      id: this.state.sessionId,
+      created_at: this.state.createdAt,
+      completed_at: this.state.completedAt,
+      title: this.state.title,
+      turns: this.state.turns,
+      report_text: this.state.report,
+    };
+    // Do not tie the write to the page lifetime: refreshing while the feedback
+    // is spoken should not throw away a finished conversation.
+    const saved = await this.api.save(body);
+    if (saved.id !== body.id) throw new Error('Saved session ID did not match. Please retry saving.');
+    return saved;
+  }
+
   async save() {
     const session = this.session;
     this.update({ phase: 'saving', warning: '', retryable: false });
     try {
-      const saved = await this.api.save({
-        id: this.state.sessionId,
-        created_at: this.state.createdAt,
-        completed_at: this.state.completedAt,
-        turns: this.state.turns,
-        report_text: this.state.report,
-      }, this.lifetime.signal);
+      const saved = await this.persist();
       if (session !== this.session) return;
-      if (saved.id !== this.state.sessionId) throw new Error('Saved session ID did not match. Please retry saving.');
       this.update({ phase: 'complete', savedConversation: saved });
     } catch (error) {
       if (session === this.session) this.fail(error, () => this.save(), 'Retry save');
@@ -351,6 +373,24 @@ export class Conversation {
       await this.audio.unlock();
       await action();
     } catch (error) { this.fail(error, action); }
+  }
+
+  async reset() {
+    this.session += 1;
+    this.accepting = false;
+    this.lifetime?.abort();
+    this.lifetime = null;
+    this.queue = [];
+    this.draining = false;
+    this.needsReply = false;
+    this.delivery = null;
+    this.interrupted = null;
+    this.opening = false;
+    this.retryAction = null;
+    this.invalidate();
+    await this.audio.close().catch(() => {});
+    this.state = initialState();
+    this.publish(this.state);
   }
 
   async dispose() {

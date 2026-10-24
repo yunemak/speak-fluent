@@ -337,7 +337,7 @@ test('real utterances remain ordered; starting another never cancels recognition
   audio.end();
 });
 
-test('farewell closes input, drops later queued speech, and completes only after the report is heard', async () => {
+test('farewell closes input, saves before feedback finishes, and completes after it is heard', async () => {
   const farewell = deferred();
   const { c, calls, audio } = harness({ transcribe: () => farewell.promise });
   const starting = c.start();
@@ -350,14 +350,34 @@ test('farewell closes input, drops later queued speech, and completes only after
   assert.equal(calls.paused, 1);
   assert.equal(calls.replies.length, 1);
   assert.equal(c.state.phase, 'feedback-speaking');
-  assert.equal(calls.saves.length, 0);
+  // The file is written as soon as feedback is ready, so a refresh during
+  // playback cannot lose the conversation.
+  assert.equal(calls.saves.length, 1);
+  assert.equal(calls.saves[0].report_text, 'Useful feedback.');
   c.speechStart(); // report cannot be interrupted by a practice turn
   assert.equal(c.state.phase, 'feedback-speaking');
   audio.end(); await setImmediate();
   assert.equal(c.state.phase, 'complete');
   assert.equal(calls.saves.length, 1);
-  assert.equal(calls.saves[0].report_text, 'Useful feedback.');
   assert.deepEqual(c.state.turns.filter(t => t.role === 'user').map(t => t.text), ['Goodbye.']);
+});
+
+test('reset returns a finished conversation to the fresh starting page', async () => {
+  const { c, calls, audio } = harness();
+  const starting = c.start();
+  await setImmediate(); audio.end(); await starting;
+  c.speechStart(); c.speechEnd('Goodbye.');
+  await setImmediate(); audio.end(); await setImmediate();
+  assert.equal(c.state.phase, 'complete');
+  assert.equal(calls.saves.length, 1);
+  await c.reset();
+  assert.equal(c.state.phase, 'idle');
+  assert.equal(c.state.sessionId, null);
+  assert.deepEqual(c.state.turns, []);
+  assert.equal(c.state.report, '');
+  assert.equal(c.state.title, '');
+  assert.equal(c.state.savedConversation, null);
+  assert.equal(calls.saves.length, 1);
 });
 
 test('save failure retains the finished session and retries the same ID without replaying feedback', async () => {
@@ -371,7 +391,7 @@ test('save failure retains the finished session and retries the same ID without 
   await setImmediate(); audio.end(); await starting;
   c.speechStart(); c.speechEnd('Goodbye.');
   await setImmediate();
-  assert.equal(saves.length, 0);
+  assert.equal(saves.length, 1);
   audio.end(); await setImmediate();
   assert.equal(c.state.phase, 'error');
   assert.equal(c.state.retryLabel, 'Retry save');
@@ -438,7 +458,7 @@ test('blocked playback retries cached audio and enters the transcript only on ac
   audio.end(); await retry;
 });
 
-test('long report keeps every character and retries only its failed audio chunk before saving', async () => {
+test('long report saves immediately and retries only its failed audio chunk', async () => {
   const report = Array.from({ length: 120 }, (_, index) =>
     `Suggestion ${index}: use the past tense and keep the rest of your sentence unchanged.`).join('\n\n');
   const chunks = speechChunks(report);
@@ -460,7 +480,8 @@ test('long report keeps every character and retries only its failed audio chunk 
   assert.equal(c.state.phase, 'feedback-speaking');
   audio.end(); await setImmediate();
   assert.equal(c.state.phase, 'error');
-  assert.equal(calls.saves.length, 0);
+  assert.equal(calls.saves.length, 1);
+  assert.equal(calls.saves[0].report_text, report);
   const retry = c.retry();
   await setImmediate();
   for (let index = 2; index < chunks.length; index++) {

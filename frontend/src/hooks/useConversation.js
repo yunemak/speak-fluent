@@ -11,5 +11,6 @@ export function useConversation() {
     const conversation = controller.current;
     return () => { void conversation.dispose(); };
   }, []);
-  return { ...state, start: () => controller.current.start(), retry: () => controller.current.retry() };
+  return { ...state, start: () => controller.current.start(), retry: () => controller.current.retry(),
+    reset: () => controller.current.reset() };
 }
