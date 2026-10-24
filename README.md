@@ -15,11 +15,11 @@ every spoken turn is covered by the feedback report.
 - Node.js 22.12+ (tested 24.18.0) and Python 3.12 (tested 3.12.15).
 - Ollama (tested 0.40.7). Initial downloads require internet and several GB of disk.
 - Tested on an RTX 5070 Laptop GPU with 8 GB VRAM and 32 GB system RAM.
-  Ollama runs Qwen3 on the GPU; Whisper `small.en` recognition and Kokoro voice
-  synthesis use the CPU. The recognizer moved to `small.en` after `base.en`
-  misheard words in the first microphone review; it adds roughly half a second on
-  short synthetic examples, with accuracy on the learner's own voice still to be
-  compared.
+  Ollama runs Qwen3 on the GPU; Whisper `medium.en` recognition and Kokoro voice
+  synthesis use the CPU. The stronger English recognizer replaces `small.en` to
+  improve similar-sounding word recognition. Six short synthetic examples took
+  1.7–2.0 seconds each, versus 0.6–0.7 seconds with `small.en`; accuracy on the
+  learner's own microphone/accent still needs comparison.
 
 React 19.2.0, Vite 7.3.7, vad-web 0.0.31, and browser ONNX Runtime 1.22.0 are
 pinned in `frontend/package.json` / `package-lock.json`. Python versions are pinned
@@ -89,8 +89,8 @@ short, sustained burst of probable speech so brief noises do not count, and keep
 buffered audio so your first word is not lost. If a cough or other noise does stop
 a reply, the same reply resumes where it stopped instead of disappearing.
 Quiet speech is level-normalized before recognition. Recognition is primed with
-a common everyday phrase so fast, casual greetings are less likely to be
-misheard.
+common everyday phrasing and a few computer-science terms, so fast, casual
+greetings and the spoken letter “C” are less likely to be misheard.
 Hide/show text whenever you want. Emojis are reserved for clear emotional replies
 and are skipped by voice output. The live transcript follows the newest message
 automatically; if you scroll up to reread, it resumes following when you return
@@ -183,6 +183,12 @@ downloaded once and stay offline; see
   readiness check names this when the local browser assets are absent.
 - **Microphone disconnected mid-session:** the app offers **Retry microphone**, which
   reopens the microphone and keeps the turns already recognized.
+- **Similar-sounding words are misheard:** update models with
+  `.venv/bin/python scripts/download_models.py`, then restart `./run.sh` to use
+  `medium.en`. Run `.venv/bin/python scripts/verify_recognition.py` for synthetic
+  checks, or add `--wav /path/to/recording.wav` to inspect a real recording (mono
+  PCM16 at 16 kHz). Recognition can still confuse words; the app does not replace
+  every “taught” with “thought” or rewrite learner grammar before feedback.
 - **The AI stopped answering:** the app keeps the words it already generated and
   retries the voice instead of asking the model for new ones.
 

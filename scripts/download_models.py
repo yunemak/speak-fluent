@@ -9,7 +9,7 @@ from huggingface_hub import hf_hub_download, snapshot_download
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"
 SOURCES = {
-    "whisper": ("Systran/faster-whisper-small.en", "d1d751a5f8271d482d14ca55d9e2deeebbae577f", MODELS / "whisper-small.en"),
+    "whisper": ("Systran/faster-whisper-medium.en", "a29b04bd15381511a9af671baec01072039215e3", MODELS / "whisper-medium.en"),
     "piper": ("rhasspy/piper-voices", "5041a7a49ae5b3a0f30e6837769eb03fdbb231bd", MODELS / "piper"),
 }
 # Kokoro is the natural-sounding voice engine. The files come from the official

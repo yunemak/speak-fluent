@@ -3,7 +3,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 MODELS = ROOT / "models"
-WHISPER_PATH = MODELS / "whisper-small.en"
+# Prefer the stronger English recognizer for similar-sounding words in learner
+# speech. Keep CPU int8 inference so conversation generation retains the GPU.
+WHISPER_PATH = MODELS / "whisper-medium.en"
 # Kokoro is the natural-sounding engine; Piper stays as the small local fallback.
 # The full-precision model sounds cleaner than int8; keep the int8 file as a
 # fallback for existing offline installs that have not downloaded the HQ model.
