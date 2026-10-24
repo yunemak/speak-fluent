@@ -3,6 +3,8 @@
 An English conversation partner that runs on your Linux computer. Speak naturally,
 interrupt when you need to, and say goodbye to hear useful wording feedback.
 
+**Video demo:** [Watch Speak Fluent in action](https://youtu.be/SwbLSt-dedU?si=sTwv24kQh1_H4Ruc)
+
 **Build status:** the speech loop, saved history, offline run, and recovery paths are
 tested with real local models and the learner's final disconnected review is complete.
 Completed conversations are saved locally after feedback playback and can be reopened
@@ -222,12 +224,12 @@ This checks synthesis → recognition → follow-up → farewell → grounded fe
 including a clean-sentence example. Automated checks cannot judge your microphone
 or whether the conversation feels comfortable; try the hands-on check above.
 
-## Recording the eventual demo
+## Demo
 
-Capture the browser window, browser/system audio, and your microphone as separate
-audio inputs (for example in OBS). Make a short recording and listen back to
-confirm both voices are audible while using headphones. The final offline review is
-complete; next is the demo recording and submission.
+The [video demo](https://youtu.be/SwbLSt-dedU?si=sTwv24kQh1_H4Ruc) was captured with
+the browser window, browser/system audio, and the microphone as separate audio inputs
+(for example in OBS), then checked for both voices being audible while using
+headphones.
 
 ## License
 
