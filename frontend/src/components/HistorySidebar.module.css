@@ -7,6 +7,11 @@
 .list { display: flex; flex-direction: column; gap: .5rem; margin: .75rem 0; max-height: 55vh; overflow-y: auto; }
 .list button { text-align: left; border: 1px solid transparent; border-radius: 10px; background: transparent; padding: .65rem .5rem; color: #34534d; }
 .list button:not(:disabled):hover, .list button[aria-current] { border-color: #b8cdc2; background: #e0e9e0; }
+.row { display: flex; align-items: center; }
+.select { flex: 1; min-width: 0; }
+.list .select { padding-inline: .25rem; }
+.list .delete { display: flex; align-items: center; justify-content: center; flex-shrink: 0; width: 32px; height: 36px; padding: 0; color: #a04a41; }
+.list .delete:not(:disabled):hover { border-color: #d9b4af; background: #f5e3df; }
 .list span, .list small { display: block; }
 .list span { font-size: .76rem; font-weight: 600; }
 .list small { font-size: .68rem; margin-top: .3rem; color: var(--muted); }
@@ -19,6 +24,6 @@
   .brand, .local { display: none; }
   .sidebar h2 { margin: 0; }
   .list { flex-direction: row; max-height: none; }
-  .list button { flex-shrink: 0; }
+  .row { flex-shrink: 0; }
   .refresh { align-self: flex-start; }
 }

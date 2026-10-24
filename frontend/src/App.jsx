@@ -45,16 +45,17 @@ export default function App() {
     void conversation.start();
   };
 
-  const remove = async () => {
-    await api.deleteConversation(selectedId);
-    setSelectedId(null);
-    setEntry({ data: null, loading: false, error: '' });
+  const remove = async id => {
+    await api.deleteConversation(id);
+    setSelectedId(current => current === id ? null : current);
+    setEntry(current => current.data?.id === id ? { data: null, loading: false, error: '' } : current);
+    setHistory(current => ({ ...current, sessions: current.sessions.filter(session => session.id !== id) }));
     setHistoryRefresh(value => value + 1);
   };
 
   return <div className={styles.app}>
     <HistorySidebar {...history} disabled={!historyAvailable} selectedId={selectedId}
-      onSelect={setSelectedId} onRefresh={() => setHistoryRefresh(value => value + 1)} />
+      onSelect={setSelectedId} onRefresh={() => setHistoryRefresh(value => value + 1)} onDelete={remove} />
     <main className={styles.main}>
       <header className={styles.header}>
         <div><strong>Speak Fluent</strong><span>A little practice, every day.</span></div>
@@ -63,9 +64,9 @@ export default function App() {
         </button>}
       </header>
       {selectedId && historyAvailable
-        ? <HistoryView entry={entry.data?.id === selectedId ? entry.data : null} loading={entry.loading} error={entry.error}
+        ? <HistoryView key={selectedId} entry={entry.data?.id === selectedId ? entry.data : null} loading={entry.loading} error={entry.error}
           onStart={start} onBack={() => setSelectedId(null)} onRetry={() => setEntryRefresh(value => value + 1)}
-          onDelete={remove} />
+          onDelete={() => remove(selectedId)} />
         : <ConversationView conversation={{ ...conversation, start }} showText={showText} />}
     </main>
   </div>;
