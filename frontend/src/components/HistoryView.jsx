@@ -27,6 +27,11 @@ export default function HistoryView({ entry, loading, error, onRetry, onStart, o
     {error && <div className={styles.warning} role="alert"><p>{error}</p><button className="quiet" onClick={onRetry}>Retry opening</button></div>}
     {entry && <>
       <h1>{entry.title}</h1>
+      {entry.completed_at && <p className={styles.date}>
+        {new Date(entry.completed_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}
+        {' · '}
+        {new Date(entry.completed_at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })}
+      </p>}
       <p className={styles.note}>Your transcript and feedback, saved locally.</p>
       <Transcript turns={entry.turns || []} report={entry.report_text} headerRight="Saved transcript" />
       <div className={styles.danger}>

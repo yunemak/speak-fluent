@@ -49,6 +49,44 @@ def test_readable_markdown_survives_new_store_and_preserves_interrupted_hidden_t
     assert restarted.list()["sessions"][0]["id"] == str(data.id)
 
 
+def test_saved_title_replaces_the_date_heading_and_can_be_retitled(tmp_path):
+    store = ConversationStore(tmp_path)
+    data = session(title="Differential Equations Chat")
+    saved = store.save(data)
+    body = (tmp_path / saved["filename"]).read_text()
+    assert saved["title"] == "Differential Equations Chat"
+    assert '# Differential Equations Chat\n' in body
+    assert store.get(data.id)["title"] == "Differential Equations Chat"
+    assert store.get(data.id)["completed_at"] == "2026-10-21T09:03:00Z"
+
+    changed = store.retitle(data.id, "Math and Calculus Chat")
+    assert changed["title"] == "Math and Calculus Chat"
+    updated = (tmp_path / saved["filename"]).read_text()
+    assert '# Math and Calculus Chat\n' in updated
+    assert 'Differential Equations Chat' not in updated
+    assert '## Transcript' in updated and data.report_text in updated
+    assert store.get(data.id)["turns"][1]["text"] == "Yesterday I go to the park."
+
+
+def test_retitle_rejects_invalid_titles_and_unknown_sessions(tmp_path):
+    store = ConversationStore(tmp_path)
+    data = session(title="A Good Title")
+    store.save(data)
+    for title in ["", "   ", "x" * 81]:
+        with pytest.raises(HistoryError) as error:
+            store.retitle(data.id, title)
+        assert error.value.status == 400
+    with pytest.raises(HistoryError) as error:
+        store.retitle(uuid4(), "Missing Chat")
+    assert error.value.status == 404
+
+
+def test_blank_title_keeps_the_date_fallback(tmp_path):
+    data = session(title="   ")
+    saved = ConversationStore(tmp_path).save(data)
+    assert saved["title"].startswith("Practice · 2026-10-21 09:03:00 UTC")
+
+
 def test_two_sessions_newest_first_and_same_id_retry_is_idempotent(tmp_path):
     store = ConversationStore(tmp_path)
     first = session()

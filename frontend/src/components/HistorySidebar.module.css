@@ -14,6 +14,7 @@
 .list .delete:not(:disabled):hover { border-color: #d9b4af; background: #f5e3df; }
 .list span, .list small { display: block; }
 .list span { font-size: .76rem; font-weight: 600; }
+.list .title { line-height: 1.35; overflow-wrap: anywhere; }
 .list small { font-size: .68rem; margin-top: .3rem; color: var(--muted); }
 .warning { font-size: .7rem; line-height: 1.6; overflow-wrap: anywhere; background: #fff0de; padding: .6rem; border-radius: 8px; }
 .refresh { font-size: .7rem; padding: .5rem; }

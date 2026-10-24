@@ -42,6 +42,11 @@ class ReportFeedback(BaseModel):
     findings: list[Finding]
 
 
+class ConversationTitle(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    title: str = Field(min_length=1, max_length=80)
+
+
 class Feedback(ReportFeedback):
     """Bound each model response; combined reports may contain more findings."""
     findings: list[Finding] = Field(max_length=12)
@@ -57,6 +62,7 @@ class CompletedSession(BaseModel):
     id: UUID
     created_at: AwareDatetime
     completed_at: AwareDatetime
+    title: str = Field(default="", max_length=80)
     turns: list[Turn] = Field(min_length=1, max_length=1000)
     report_text: str = Field(min_length=1, max_length=100000)
 

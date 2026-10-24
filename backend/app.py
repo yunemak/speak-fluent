@@ -223,9 +223,11 @@ async def reply(data: ReplyRequest, request: Request):
 async def report(data: ReportRequest, request: Request):
     async def operation():
         started = time.monotonic()
+        title = await llm.title(data.turns)
+        logger.info("Title completed in %.2fs", time.monotonic() - started)
         result = await llm.report(data.turns)
         logger.info("Report completed in %.2fs", time.monotonic() - started)
-        return {"request_id": data.request_id, **result}
+        return {"request_id": data.request_id, "title": title, **result}
     return await until_disconnect(request, operation())
 
 

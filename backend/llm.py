@@ -5,13 +5,17 @@ import httpx
 from pydantic import ValidationError
 
 from .config import CHAT_MODEL, FEEDBACK_MODEL, OLLAMA_URL
-from .prompts import CONVERSATION, FEEDBACK, OPENING, REWRITE
-from .schemas import Feedback, ReportFeedback, Rewrites
+from .prompts import CONVERSATION, FEEDBACK, OPENING, REWRITE, TITLE
+from .schemas import ConversationTitle, Feedback, ReportFeedback, Rewrites
 from .spoken_text import display_text, is_contraction_only_change, spoken_text
 
 
 class ModelError(Exception):
     pass
+
+
+class UngroundedFeedback(ValueError):
+    """The model returned no finding that quoted the learner's exact words."""
 
 
 # UTF-8 byte budgets conservatively bound tokens, including escaped JSON, and
@@ -116,9 +120,57 @@ async def reply(turns, opening):
     return text
 
 
+def clean_title(title):
+    title = re.sub(r"^title\s*:\s*", "", title.strip(), flags=re.IGNORECASE)
+    title = title.strip().strip("\"'“”‘’").strip()
+    title = title.rstrip(".").strip("\"'“”‘’").strip()
+    title = re.sub(r"\s+", " ", title)[:80].rstrip()
+    if title.casefold() in {"goodbye chat", "goodbyes chat", "greeting chat", "hello chat"}:
+        return "Everyday Greetings Chat"
+    for short, proper in {"Sql": "SQL", "Ui": "UI", "Stp": "STP", "Api": "API",
+                          "Html": "HTML", "Css": "CSS", "Http": "HTTP", "Tcp": "TCP",
+                          "Dns": "DNS", "Cpu": "CPU", "Gpu": "GPU"}.items():
+        title = re.sub(rf"\b{short}\b", proper, title)
+    return title
+
+
+async def title(turns):
+    """A short topic title from the learner's messages; empty means use the date."""
+    texts = [turn.text if hasattr(turn, "text") else turn["text"]
+             for turn in turns
+             if (turn.role if hasattr(turn, "role") else turn["role"]) == "user" and
+             (turn.text if hasattr(turn, "text") else turn["text"]).strip()]
+    if not texts:
+        return ""
+    # Topic comes from the conversation as a whole; keep the prompt bounded.
+    content = encoded({"conversation": texts})
+    if len(content.encode("utf-8")) > INPUT_BYTES:
+        joined = "\n".join(texts)
+        content = encoded({"conversation": list(text_parts(joined, INPUT_BYTES))})
+    messages = [{"role": "system", "content": TITLE},
+                {"role": "user", "content": content}]
+    for attempt in range(2):
+        try:
+            raw = await chat(messages, schema=ConversationTitle.model_json_schema(),
+                             temperature=0.2,
+                             retry_hint=("Previous output was invalid. Return one short title "
+                                         "as JSON." if attempt else ""))
+            title_text = clean_title(ConversationTitle.model_validate_json(raw).title)
+            if title_text:
+                return title_text
+            raise ValueError("Empty title.")
+        except (ValidationError, ValueError, ModelError):
+            if attempt:
+                return ""
+    return ""
+
+
 TIME_COMMA = re.compile(r"\b(last|next|this)\s*,\s*(week|month|year|weekend|night|morning|afternoon|evening)\b",
                         re.IGNORECASE)
 GOODBYE_COMMA = re.compile(r"\bgood\s*,\s*bye\b", re.IGNORECASE)
+UNVERIFIED_SUMMARY = ("I reviewed your conversation, but I could not verify the model's specific "
+                      "corrections, so I left them out rather than show something wrong. "
+                      "Your conversation is saved.")
 
 
 def clean_punctuation(text):
@@ -131,16 +183,17 @@ def clean_punctuation(text):
 def validate_feedback(raw, user_texts):
     """Ground every quote in the learner's words.
 
-    An ungrounded quote is a fabrication and always fails. A finding whose
-    suggestion repeats its quote, or differs only by optional contraction
-    style, carries no advice: it is dropped instead of failing the whole
-    report, so one weak item cannot lose the other findings.
+    Findings with an invented quote are dropped so one bad model suggestion
+    cannot lose an otherwise useful report. If no finding is grounded, raise so
+    the caller can retry rather than showing fabricated corrections.
     """
     feedback = Feedback.model_validate_json(raw)
     grounded = []
+    ungrounded = False
     for finding in feedback.findings:
         if not any(finding.quote in text for text in user_texts):
-            raise ValueError("Feedback quoted words absent from the learner's turns.")
+            ungrounded = True
+            continue
         suggestion = clean_punctuation(finding.suggestion)
         if finding.quote.strip() == suggestion.strip():
             # A no-op is weak advice, not a fabrication. Keep the useful items.
@@ -151,6 +204,8 @@ def validate_feedback(raw, user_texts):
             "suggestion": suggestion,
             "explanation": clean_punctuation(finding.explanation),
         }))
+    if ungrounded and not grounded:
+        raise UngroundedFeedback("No feedback quote matched the learner's exact words.")
     return feedback.model_copy(update={"findings": grounded})
 
 
@@ -164,6 +219,8 @@ def clean_summary(summary):
 
 def format_feedback(feedback):
     if not feedback.findings:
+        if feedback.summary == UNVERIFIED_SUMMARY:
+            return display_text(feedback.summary)
         return "No clear wording issues were found in this conversation. Keep practicing!"
     paragraphs = [display_text(feedback.summary)]
     for finding in feedback.findings:
@@ -204,11 +261,17 @@ async def compare_feedback(user_texts, rewrites):
             raw = await chat(messages, schema=Feedback.model_json_schema(), model=FEEDBACK_MODEL,
                              temperature=0.1,
                              retry_hint=("Previous output was invalid. Return complete JSON and quote ONLY "
-                                         "exact supplied user text." if attempt else ""))
+                                         "exact supplied user text. Omit any finding whose quote is not an "
+                                         "exact substring." if attempt else ""))
             feedback = validate_feedback(raw, user_texts)
             summary = (clean_summary(feedback.summary) if feedback.findings else
                        "No clear wording issues were found in this conversation. Keep practicing!")
             return feedback.model_copy(update={"summary": summary})
+        except UngroundedFeedback:
+            if attempt:
+                # Keep the transcript and the save flow even when the model
+                # cannot support a finding with the learner's exact words.
+                return Feedback(summary=UNVERIFIED_SUMMARY, findings=[])
         except (ValidationError, ValueError, ModelError):
             if attempt:
                 raise ModelError("Local AI could not produce a complete, grounded report. Please retry.")
@@ -226,8 +289,11 @@ async def report(turns):
     batches = list(feedback_batches(user_texts))
     findings, seen = [], set()
     first_summary = ""
+    unverified_batches = 0
     for batch in batches:
         feedback = await review_batch(batch)
+        if feedback.summary == UNVERIFIED_SUMMARY:
+            unverified_batches += 1
         if not first_summary:
             first_summary = feedback.summary
         for finding in feedback.findings:
@@ -236,9 +302,13 @@ async def report(turns):
                 findings.append(finding)
                 seen.add(key)
     # Combine accepted findings without another model pass that could omit them.
-    summary = first_summary if len(batches) == 1 else (
-        f"I reviewed all {len(user_texts)} of your spoken turns. Here are useful wording suggestions from your conversation."
-    )
+    if not findings and unverified_batches == len(batches):
+        summary = UNVERIFIED_SUMMARY
+    elif len(batches) == 1:
+        summary = first_summary
+    else:
+        summary = (f"I reviewed all {len(user_texts)} of your spoken turns. "
+                   "Here are useful wording suggestions from your conversation.")
     feedback = ReportFeedback(summary=summary, findings=findings)
     report_text = format_feedback(feedback)
     if len(report_text) > 100000:

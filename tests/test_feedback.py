@@ -103,7 +103,7 @@ def rewrite_reply(messages):
     return json.dumps({"rewrites": json.loads(messages[-1]["content"])})
 
 
-def test_report_retries_grounding_once_and_fails_without_fake_report(monkeypatch):
+def test_report_retries_ungrounded_feedback_then_omits_it(monkeypatch):
     calls = []
 
     async def chat(messages, **kwargs):
@@ -114,10 +114,24 @@ def test_report_retries_grounding_once_and_fails_without_fake_report(monkeypatch
 
     monkeypatch.setattr(llm, "chat", chat)
     turns = [Turn(id=uuid4(), role="user", text="I enjoy reading.")]
-    with pytest.raises(llm.ModelError):
-        asyncio.run(llm.report(turns))
+    result = asyncio.run(llm.report(turns))
     assert len(calls) == 2
     assert calls[-1]["retry_hint"]
+    assert result["findings"] == []
+    assert "could not verify" in result["report_text"]
+    assert "Yesterday I went to the park" not in result["report_text"]
+
+
+def test_one_ungrounded_finding_does_not_hide_a_grounded_finding():
+    raw = json.dumps({"summary": "One clear fix.", "findings": [
+        {"category": "grammar", "quote": "words the model invented",
+         "suggestion": "invented correction", "explanation": "Not in the transcript."},
+        {"category": "grammar", "quote": "Yesterday I go to the park.",
+         "suggestion": "Yesterday I went to the park.", "explanation": "Use the past tense."},
+    ]})
+    feedback = llm.validate_feedback(raw, ["Yesterday I go to the park."])
+    assert len(feedback.findings) == 1
+    assert feedback.findings[0].quote == "Yesterday I go to the park."
 
 
 def test_report_retries_truncated_output(monkeypatch):
@@ -151,6 +165,27 @@ def test_report_compares_originals_when_rewrite_fails(monkeypatch):
     assert compared == [{"original": ["Yesterday I go to the park."],
                          "natural_rewrite": ["Yesterday I go to the park."]}]
     assert "went" in result["report_text"]
+
+
+def test_title_uses_only_learner_messages_and_cleans_model_wrapping(monkeypatch):
+    seen = {}
+
+    async def chat(messages, **kwargs):
+        seen["messages"] = messages
+        seen["schema"] = kwargs["schema"]
+        return '{"title": "  \\"Differential Equations Chat\\".  "}'
+
+    monkeypatch.setattr(llm, "chat", chat)
+    turns = [
+        Turn(id=uuid4(), role="assistant", text="Your partner mentions the ocean."),
+        Turn(id=uuid4(), role="user", text="I am studying differential equations."),
+    ]
+    assert asyncio.run(llm.title(turns)) == "Differential Equations Chat"
+    payload = json.loads(seen["messages"][-1]["content"])
+    assert payload == {"conversation": ["I am studying differential equations."]}
+    assert seen["schema"]["title"] == "ConversationTitle"
+    assert llm.clean_title("Goodbye Chat") == "Everyday Greetings Chat"
+    assert llm.clean_title("Sql Data Visualization Chat") == "SQL Data Visualization Chat"
 
 
 def test_reply_keeps_faces_for_display_but_synthesis_skips_them(monkeypatch):

@@ -58,7 +58,8 @@ def parse_transcript(markdown):
 
 def render(session):
     completed = session.completed_at.astimezone(timezone.utc)
-    title = completed.strftime("Practice · %Y-%m-%d %H:%M:%S UTC")
+    fallback = completed.strftime("Practice · %Y-%m-%d %H:%M:%S UTC")
+    title = re.sub(r"\s+", " ", session.title).strip() or fallback
     metadata = {"format_version": 1, "id": str(session.id), "title": title,
                 "created_at": utc(session.created_at), "completed_at": utc(session.completed_at)}
     parts = ["---", json.dumps(metadata, ensure_ascii=False), "---", "", f"# {title}", "", "## Transcript", ""]
@@ -188,10 +189,63 @@ class ConversationStore:
             turns, report_text = parse_transcript(markdown)
             for index, turn in enumerate(turns):
                 turn["id"] = f"{metadata['id']}:{index}"
-            return {"id": metadata["id"], "title": metadata["title"], "markdown": markdown,
-                    "turns": turns, "report_text": report_text}
+            return {"id": metadata["id"], "title": metadata["title"], "completed_at": metadata["completed_at"],
+                    "markdown": markdown, "turns": turns, "report_text": report_text}
         except (ValueError, OSError, UnicodeError) as error:
             raise HistoryError("Could not open this conversation. Check the file and its permissions; it was left unchanged.", "history_read_failed") from error
+
+    def retitle(self, session_id, title):
+        """Update only the readable title in the metadata and heading."""
+        title = re.sub(r"\s+", " ", title).strip()
+        if not title or len(title) > 80:
+            raise HistoryError("A conversation title must be 1–80 characters.", "invalid_title", 400)
+        try:
+            with (self.directory / ".write.lock").open("a") as lock:
+                fcntl.flock(lock, fcntl.LOCK_EX)
+                paths = self._matches(session_id)
+                if not paths:
+                    raise HistoryError("This saved conversation was not found.", "history_not_found", 404)
+                if len(paths) != 1:
+                    raise HistoryError("Several files share this session ID. No title was changed.", "history_conflict", 409)
+                path = paths[0]
+                if path.is_symlink() or path.resolve().parent != self.directory:
+                    raise HistoryError("Linked history files are not supported; no title was changed.", "history_conflict", 409)
+                metadata, markdown = self._read(path)
+                if metadata["title"] == title:
+                    return {"id": metadata["id"], "title": title, "filename": path.name}
+                metadata["title"] = title
+                lines = markdown.split("\n")
+                lines[1] = json.dumps(metadata, ensure_ascii=False)
+                for index in range(3, len(lines)):
+                    if lines[index].startswith("# "):
+                        lines[index] = f"# {title}"
+                        break
+                content = "\n".join(lines)
+                temporary = None
+                try:
+                    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=self.directory,
+                                                     prefix=".saving-", suffix=".tmp", delete=False) as file:
+                        temporary = Path(file.name)
+                        file.write(content)
+                        file.flush()
+                        os.fsync(file.fileno())
+                    os.replace(temporary, path)
+                    temporary = None
+                    directory_fd = os.open(self.directory, os.O_RDONLY | os.O_DIRECTORY)
+                    try:
+                        os.fsync(directory_fd)
+                    finally:
+                        os.close(directory_fd)
+                finally:
+                    if temporary is not None:
+                        with contextlib.suppress(OSError):
+                            temporary.unlink(missing_ok=True)
+                return {"id": metadata["id"], "title": title, "filename": path.name}
+        except HistoryError:
+            raise
+        except (ValueError, OSError, UnicodeError) as error:
+            raise HistoryError("Could not update this conversation title. Check the file and its permissions.",
+                               "history_read_failed") from error
 
     def delete(self, session_id):
         """Remove one saved conversation. Only files inside this store are touched."""
