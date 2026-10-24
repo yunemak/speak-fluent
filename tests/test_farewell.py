@@ -19,6 +19,10 @@ from backend.farewell import is_farewell
     "I'm going to call it a day.", "I think I should go now.", "I'm off.",
     "I have to go, talk to you later.",
     "I have some business to take care of, goodbye, thanks.",
+    # A negation in an earlier clause must not hide a real closing.
+    "Not specific, let's end the conversation now, goodbye.",
+    "Not really, goodbye.",
+    "I'm not sure what to say, but goodbye.",
 ])
 def test_clear_closing(text):
     assert is_farewell(text)
@@ -38,6 +42,11 @@ def test_clear_closing(text):
     "How do I end our conversation?", "I should go to the doctor.",
     "I said goodbye, thanks.", "We talked about saying goodbye later, thanks.",
     "I don't want to say goodbye, thanks.", "My friend said goodbye, thanks.",
+    # Negated, reported, or questioned closings remain conversation.
+    "I don't want to say goodbye.", "Don't end the conversation.",
+    "How do I end the conversation?", "I said goodbye.",
+    # A comma must not turn a destination into a separate closing clause.
+    "I have to go, to work.", "I am done, with my homework.",
 ])
 def test_incidental_words_do_not_end_practice(text):
     assert not is_farewell(text)

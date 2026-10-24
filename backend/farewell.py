@@ -12,6 +12,10 @@ turn. Rules keep ordinary sentences from ending practice:
 
 The start-of-turn rule matters when a closing word is spoken over the AI's
 voice: the recogniser then hears both, for example "Goodbye. How was your day?".
+
+Clauses are matched separately so a negation in an unrelated clause does not
+hide a real closing: "Not specific, let's end the conversation now, goodbye."
+still ends practice, while "I don't want to say goodbye" does not.
 """
 import re
 
@@ -98,11 +102,32 @@ QUESTION_WORDS = {"how", "what", "why", "when", "where", "who", "which"}
 MAX_TOKENS = 40
 MAX_WORDS_AROUND = 6
 
+# Only unmistakable farewells may keep their meaning when unrelated words
+# follow them in the same clause (for example, speech heard over the AI voice).
+STRONG_FAREWELL_STARTS = {"goodbye", "good", "bye", "goodby", "see", "catch", "talk", "saying"}
 
-def normalize(text: str):
+
+def tokenize(text: str):
+    """Lowercase tokens plus the clause number for each token.
+
+    Commas and sentence punctuation start a new clause so a negation such as
+    "not specific" cannot negate a later, separate "let's end the conversation".
+    """
     normalized = text.lower().replace("’", "'").replace("'", "")
-    normalized = re.sub(r"[^a-z\s]", " ", normalized)
-    return normalized.split()
+    parts = re.split(r"([.!?;:,]+)", normalized)
+    tokens, clause_ids = [], []
+    for index in range(0, len(parts), 2):
+        clause_tokens = re.sub(r"[^a-z\s]", " ", parts[index]).split()
+        tokens.extend(clause_tokens)
+        clause_ids.extend([index // 2] * len(clause_tokens))
+    return tokens, clause_ids
+
+
+def clause_start(index, clause_ids):
+    """First token index of the clause containing `index`."""
+    while index > 0 and clause_ids[index - 1] == clause_ids[index]:
+        index -= 1
+    return index
 
 
 def closing_spans(tokens):
@@ -128,35 +153,40 @@ def action_spans(tokens):
 
 def is_farewell(text: str) -> bool:
     """True only for a closing utterance, never for an incidental mention."""
-    tokens = normalize(text)
+    tokens, clause_ids = tokenize(text)
     if not tokens or len(tokens) > MAX_TOKENS:
         return False
+    question = "?" in text
 
     for start, end in closing_spans(tokens):
         outside = tokens[:start] + tokens[end:]
         if all(word in ALLOWED_EXTRA_WORDS for word in outside):
             return True
-        # The closing word was spoken first, and the rest does not read like
-        # the learner describing or questioning a goodbye.
-        if start <= 1 and len(outside) <= MAX_WORDS_AROUND and not (
-                any(word in NARRATION_WORDS for word in outside)):
+        # An unmistakable farewell spoken first still ends practice when
+        # unrelated words follow it (for example, a reply heard over the AI
+        # voice), unless the learner is describing or questioning it.
+        if tokens[start] in STRONG_FAREWELL_STARTS and \
+                start - clause_start(start, clause_ids) <= 1 and \
+                len(outside) <= MAX_WORDS_AROUND and not (
+                    any(word in NARRATION_WORDS for word in outside)):
             return True
 
     # A farewell at the end of a longer turn still ends practice, even with a
     # short courtesy after it, as long as the learner is not reporting,
-    # negating, or asking about the goodbye itself.
+    # negating, or asking about the goodbye itself in that clause.
     for start, end in closing_spans(tokens):
         after = tokens[end:]
-        before = tokens[:start]
+        before = tokens[clause_start(start, clause_ids):start]
         if len(after) <= 2 and all(word in ALLOWED_EXTRA_WORDS for word in after):
-            if not ("?" in text or any(word in SPEECH_NARRATION or word in NEGATIONS for word in before)):
+            if not (question or any(word in SPEECH_NARRATION or word in NEGATIONS for word in before)):
                 return True
 
     # "Let's call it a day", "I have to go now", and similar clear decisions.
     # Accept only when the action ends the turn (allowing polite sign-offs).
     for start, end in action_spans(tokens):
-        before, after = tokens[:start], tokens[end:]
-        if "?" in text or any(word in QUESTION_WORDS for word in before):
+        after = tokens[end:]
+        before = tokens[clause_start(start, clause_ids):start]
+        if question or any(word in QUESTION_WORDS for word in before):
             continue
         if any(word in NEGATIONS for word in before[-3:]):
             continue
