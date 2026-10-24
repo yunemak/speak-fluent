@@ -35,6 +35,33 @@ start() {
     pids+=("$!")
 }
 
+url_ready() {
+    .venv/bin/python - "$1" <<'PY'
+import sys
+import urllib.request
+
+try:
+    with urllib.request.urlopen(sys.argv[1], timeout=1) as response:
+        sys.exit(0 if response.status < 400 else 1)
+except Exception:
+    sys.exit(1)
+PY
+}
+
+open_app() {
+    # Set SPEAK_FLUENT_NO_BROWSER=1 to keep the launcher from opening a tab.
+    [[ -z "${SPEAK_FLUENT_NO_BROWSER:-}" ]] || return 1
+    [[ -n "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]] || return 1
+    if command -v xdg-open >/dev/null; then
+        setsid xdg-open "$1" >/dev/null 2>&1 &
+        return 0
+    elif [[ -n "${BROWSER:-}" ]]; then
+        setsid "$BROWSER" "$1" >/dev/null 2>&1 &
+        return 0
+    fi
+    return 1
+}
+
 export SPEAK_FLUENT_OLLAMA_URL="${SPEAK_FLUENT_OLLAMA_URL:-http://127.0.0.1:11434}"
 ollama_ready() {
     .venv/bin/python - <<'PY'
@@ -101,7 +128,28 @@ fi
 printf 'Starting backend and frontend...\n'
 start .venv/bin/python -m uvicorn backend.app:app --host 127.0.0.1 --port 8000
 start npm --prefix frontend run dev -- --host 127.0.0.1 --port 5173 --strictPort
-printf '\nOpen http://127.0.0.1:5173 once the servers are ready. Press Ctrl+C to stop.\n\n'
+
+app_url='http://127.0.0.1:5173'
+ready=false
+for ((attempt = 0; attempt < 60; attempt++)); do
+    for pid in "${pids[@]}"; do
+        kill -0 "$pid" 2>/dev/null || break 2
+    done
+    if url_ready "$app_url"; then
+        ready=true
+        break
+    fi
+    sleep 0.5
+done
+if "$ready"; then
+    if open_app "$app_url"; then
+        printf '\nOpening %s in your browser. Press Ctrl+C to stop.\n\n' "$app_url"
+    else
+        printf '\nOpen %s in your browser. Press Ctrl+C to stop.\n\n' "$app_url"
+    fi
+else
+    printf '\nOpen %s in your browser once the servers are ready. Press Ctrl+C to stop.\n\n' "$app_url"
+fi
 
 # A failed service should not leave the other services running unnoticed.
 status=0

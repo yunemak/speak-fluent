@@ -79,10 +79,12 @@ After the one-time setup, run:
 
 The script starts Ollama, the Python backend, and the frontend together. It uses
 the project-local Ollama installation when available, or `ollama` from your PATH,
-and reuses an already-running Ollama server. Press **Ctrl+C** to stop the processes
-started by the script. You can also invoke the script from another directory.
+and reuses an already-running Ollama server. Once the frontend is ready, it opens
+**http://127.0.0.1:5173** in your browser. Press **Ctrl+C** to stop the processes
+started by the script. You can also invoke the script from another directory, and
+set `SPEAK_FLUENT_NO_BROWSER=1` to skip opening the browser.
 
-Open **http://127.0.0.1:5173**. Use headphones, press **Start a conversation**, and
+Use headphones, press **Start a conversation**, and
 allow microphone access. Your partner speaks first. Pause for about one second
 at the end of a turn. Speak over a reply to interrupt it; the browser waits for a
 short, sustained burst of probable speech so brief noises do not count, and keeps
