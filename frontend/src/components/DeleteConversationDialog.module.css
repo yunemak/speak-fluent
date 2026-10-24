@@ -1,0 +1,17 @@
+.dialog { width: min(440px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); margin: auto; padding: 1.75rem; overflow-y: auto; border: 1px solid var(--line); border-radius: 20px; background: #f7f6f2; color: #253b3c; box-shadow: 0 24px 80px #172e2b33; }
+.dialog::backdrop { background: #172e2b80; backdrop-filter: blur(4px); }
+.icon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; margin-bottom: 1.25rem; border-radius: 14px; background: #f5e3df; color: #a04a41; }
+.dialog h2 { margin: 0 0 .75rem; font-size: 1.35rem; font-weight: 600; letter-spacing: -.02em; }
+.description { margin: 0; color: var(--muted); font-size: .85rem; line-height: 1.7; }
+.conversation { margin: 1.25rem 0; padding: 1rem; border: 1px solid var(--line); border-radius: 12px; background: #f0f1eb; overflow-wrap: anywhere; }
+.conversation strong { display: block; font-size: .85rem; font-weight: 600; line-height: 1.5; }
+.conversation time { display: block; margin-top: .35rem; font-size: .75rem; color: var(--muted); }
+.actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: .65rem; margin-top: 1.5rem; }
+.actions button { font-size: .8rem; }
+.delete { border: 1px solid #b2544a; border-radius: 999px; background: #b2544a; color: white; padding: .65rem 1rem; }
+.delete:not(:disabled):hover { background: #9a443b; border-color: #9a443b; }
+.error { margin: 1rem 0 0; padding: .75rem; border-radius: 10px; background: #f5e3df; color: #a04a41; font-size: .8rem; line-height: 1.6; overflow-wrap: anywhere; }
+@media (max-width: 640px) {
+  .dialog { padding: 1.5rem; }
+  .actions button { flex: 1; }
+}
